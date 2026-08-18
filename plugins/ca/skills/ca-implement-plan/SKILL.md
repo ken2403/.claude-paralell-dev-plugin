@@ -99,9 +99,10 @@ Step 3), run a checkpoint review so defects are caught before more code is built
    PR="$(gh pr view "$BR" --json number --jq .number)"
    echo "draft PR: #$PR"
    ```
-2. Call the checkpoint review (`M` = the milestone number just completed). The same **TWO
-   PRECONDITIONS** as the final review apply (Step 3) — a resolvable `/ca:review-pr` plus
-   network + authenticated `gh`. If the script fails because the reviewer was unreachable,
+2. Call the checkpoint review (`M` = the milestone number just completed). The same **THREE
+   PRECONDITIONS** as the final review apply (Step 3) — a resolvable `/ca:review-pr`, tool
+   permissions for the `claude -p` session, and network + authenticated `gh`. If the script
+   fails because the reviewer was unreachable,
    **ASK** the human whether to run it where network works or to skip the remaining checkpoints
    and rely on the final review — do not treat an unreachable reviewer as a real `blocked` verdict.
 
