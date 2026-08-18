@@ -82,7 +82,9 @@ duplication that must remain plugin-specific, with a reason.
 
 - `claude plugin validate ./ha` (and `./sa`, `./ca/claude` if you touched them) — must pass.
 - `bash common/sync.sh --check` and `bash common/tests/run.sh` — generated files
-  must match `common/`.
+  must match `common/`. **Stage new files before trusting this**: the duplicate-coverage
+  rule enumerates with `git ls-files`, so a brand-new duplicated path is invisible until it
+  is tracked, and the check flips from green to red at the moment you commit.
 - Skill `name:` ↔ directory and agent `name:` ↔ filename all match.
 - `bash -n ha/skills/*/scripts/*.sh ha/hooks/*.sh sa/skills/*/scripts/*.sh sa/hooks/*.sh`.
 - Generated helpers stay in lockstep by editing `common/` and rerunning

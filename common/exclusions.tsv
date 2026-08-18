@@ -1,15 +1,9 @@
-ha/skills/implement/scripts/new-worktree.sh	ha worktree creation has reuse behavior specific to implementation planning.
-sa/skills/simple-implement/scripts/new-worktree.sh	sa worktree creation is a lighter simple-implement flow.
+ca/claude/skills/dual-review/references/review-contract.md	ca/claude keeps a portable copy of the review contract for the standalone dual review.
 ca/claude/skills/implement/scripts/new-worktree.sh	ca launches the Codex loop and carries ca-specific review wiring.
-ha/skills/resolve-conflicts/SKILL.md	ha conflict resolution uses verifier and systematic-debugging guidance.
-sa/skills/resolve-conflicts/SKILL.md	sa conflict resolution pins opus and uses deep-verifier escalation.
 ca/claude/skills/resolve-conflicts/SKILL.md	ca conflict resolution is agent-less and loop-aware.
-ha/skills/review-pr/SKILL.md	ha review uses ha verifier/analyzer workflow.
-sa/skills/review-pr/SKILL.md	sa review uses multi-lens verifier fan-out and opus escalation.
 ca/claude/skills/review-pr/SKILL.md	ca review emits the ca_claude_review.v1 contract for Codex.
 ca/claude/skills/review-pr/references/review-contract.md	ca/claude keeps a portable copy of the review contract for the review skill.
 ca/claude/skills/synthesize-review/references/review-contract.md	ca/claude keeps a portable copy of the review contract for the synthesis skill.
-ca/claude/skills/dual-review/references/review-contract.md	ca/claude keeps a portable copy of the review contract for the standalone dual review.
 ca/codex/.codex-plugin/plugin.json	ca/codex is a separate Codex plugin manifest.
 ca/codex/skills/ca-implement-plan/SKILL.md	ca/codex is a different tool plugin with its own skill contract.
 ca/codex/skills/ca-implement-plan/agents/openai.yaml	ca/codex agent policy is Codex-specific.
@@ -17,9 +11,21 @@ ca/codex/skills/ca-implement-plan/references/review-contract.md	ca/codex keeps a
 ca/codex/skills/ca-implement-plan/scripts/claude-review.sh	ca/codex script invokes Claude and is not shared by Claude plugins.
 ca/codex/skills/ca-implement-plan/scripts/codex-review-schema.json	ca/codex schema is the Codex second-opinion contract and is not shared by Claude plugins.
 ca/codex/skills/ca-implement-plan/scripts/codex-review.sh	ca/codex script invokes Codex and is not shared by Claude plugins.
+ca/codex/skills/ca-implement-plan/scripts/dual-review.sh	ca/codex orchestrates both review legs for the Codex loop and is not shared by Claude plugins.
 ca/codex/skills/ca-implement-plan/scripts/new-worktree.sh	ca/codex creates the isolated Codex worktree and launcher.
 ca/codex/skills/ca-implement-plan/scripts/post-summary.sh	ca/codex posts the exchange summary after review.
+ca/codex/skills/ca-implement-plan/scripts/promote-pr.sh	ca/codex owns the promotion gate; only the Codex loop may mark its draft PR ready.
 ca/codex/skills/ca-implement-plan/scripts/synthesize-review.sh	ca/codex script invokes Claude synthesis and is not shared by Claude plugins.
+ca/codex/skills/ca-implement-plan/scripts/validate-review.py	ca/codex keeps a portable copy of the review validator so the skill stays self-contained.
+ca/codex/skills/ca-implement-plan/tests/claude-review-test.sh	ca/codex test covers the Claude review wrapper's diagnostics and permission passthrough.
 ca/codex/skills/ca-implement-plan/tests/codex-review-test.sh	ca/codex test covers Codex-only review script behavior.
+ca/codex/skills/ca-implement-plan/tests/new-worktree-test.sh	ca/codex test covers worktree creation, base detection, and the .ca exclusion.
 ca/codex/skills/ca-implement-plan/tests/post-summary-test.sh	ca/codex test covers the exchange-summary glob filtering.
+ca/codex/skills/ca-implement-plan/tests/promote-pr-test.sh	ca/codex test covers the promotion gate, including the pr/head_sha subject binding.
 ca/codex/skills/ca-implement-plan/tests/synthesize-review-test.sh	ca/codex test covers Claude synthesis wrapper behavior.
+ha/skills/implement/scripts/new-worktree.sh	ha worktree creation has reuse behavior specific to implementation planning.
+ha/skills/resolve-conflicts/SKILL.md	ha conflict resolution uses verifier and systematic-debugging guidance.
+ha/skills/review-pr/SKILL.md	ha review uses ha verifier/analyzer workflow.
+sa/skills/resolve-conflicts/SKILL.md	sa conflict resolution pins opus and uses deep-verifier escalation.
+sa/skills/review-pr/SKILL.md	sa review uses multi-lens verifier fan-out and opus escalation.
+sa/skills/simple-implement/scripts/new-worktree.sh	sa worktree creation is a lighter simple-implement flow.
