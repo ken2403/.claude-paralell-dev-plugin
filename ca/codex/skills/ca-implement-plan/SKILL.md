@@ -164,6 +164,15 @@ Step 3), run a checkpoint review so defects are caught before more code is built
      session. Provide network by launching Codex with it permitted for this command, or run the
      command in a host terminal where `gh` is authenticated.
 
+   **The Codex second-opinion leg cannot run nested inside your own Codex session.** Observed:
+   `codex exec` launched from within a sandboxed Codex session dies with
+   `failed to initialize in-process app-server client: Operation not permitted`, so the dual
+   review degrades — visibly, with `codex.status: unavailable` in the meta sidecar and in the PR
+   summary — to a Claude-only round. That is correct behaviour, not a failure, but it means a
+   final review you run from inside this session is single-model in practice. To actually get the
+   second opinion, run the review step on the host (the same arrangement network + `gh` already
+   require), or re-review afterwards with `/ca:dual-review`.
+
    Tell the human which arrangement you are relying on before running it.
 
    ```bash
