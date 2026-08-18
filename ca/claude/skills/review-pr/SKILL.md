@@ -1,33 +1,40 @@
 ---
 name: review-pr
-description: Review a pull request against the implementation plan it was built from, then emit a structured ca_claude_review.v1 JSON verdict (approve / request_changes / blocked) with blocking findings. Supports mid-implementation checkpoint reviews (mode=checkpoint) that judge only the milestones built so far. Use when the ca loop or a user asks to review a Codex-built PR before it is merged, or says things like "review this PR against the plan", "review what Codex built", "is this implementation correct", or invokes /ca:review-pr. Reviews the PR diff; does not edit code.
+description: Internal blind-review leg of the ca loop. Emits one structured ca_claude_review.v1 JSON verdict (approve / request_changes / blocked) for a pull request judged against the plan it was built from, in final or checkpoint mode. The ca implement loop and /ca:dual-review invoke it through claude -p; it is not the entry point for reviewing a PR by hand — use /ca:dual-review for that. Reviews the PR diff; does not edit code.
 license: MIT
 effort: high
-allowed-tools: Read, Grep, Glob, Bash, WebFetch
+allowed-tools: Read, Grep, Glob, Bash, WebFetch, Skill
 disable-model-invocation: true
 ---
 
 # review-pr
 
-Review a pull request against its plan and return a single `ca_claude_review.v1` JSON object. You are the reviewer half of the ca (Cooperate Agents) loop: Codex implemented and opened a **draft** PR; you judge it, adversarially, and your verdict gates whether the PR is promoted to ready.
+Review a pull request against its plan and return a single `ca_claude_review.v1` JSON object.
+
+**You are one leg of a review, not the whole review.** The ca implement loop and `/ca:dual-review`
+run you through `claude -p` as the *blind* Claude leg — blind because a Codex second opinion may be
+running concurrently and neither leg may see the other. Your verdict either gates PR promotion
+directly (single-model rounds) or is adjudicated by `/ca:synthesize-review` against the Codex leg.
+Humans reviewing a PR by hand should run `/ca:dual-review`, which orchestrates this for them.
 
 ## Important — inputs and output
 
 The ca loop invokes this skill with plain `key=value` lines: `plan=<path>`, `pr=<number>`,
 `round=<n>`, `mode=<checkpoint|final>` (optional — absent means `final`), and an output path
-(env `CA_OUT`, else an `out=<path>` line). A human may instead invoke `/ca:review-pr <pr>` directly.
+(env `CA_OUT`, else an `out=<path>` line). Callers always supply an output path; there is no
+interactive mode.
 
-- **PR number**: take it from `pr=` (loop) or the first argument (human). If neither is given,
-  auto-detect it from the current branch:
+- **PR number**: take it from `pr=`. If it is absent, auto-detect it from the current branch:
 
   ```bash
   PR="${PR:-$(gh pr view --json number --jq .number 2>/dev/null)}"
   [ -n "$PR" ] || { echo "no PR number given and none found for the current branch" >&2; exit 1; }
   ```
 
-- **Output**: when `CA_OUT`/`out=` is set (loop mode), write the JSON object to that path and to
-  nothing else. When a human ran it with no output path, also print a short human-readable
-  APPROVE / REQUEST CHANGES summary. Do not modify code.
+- **Output**: write the JSON object to `CA_OUT`/`out=` and to nothing else. This skill has no
+  `Write` tool by design — emit the file with `Bash` (a quoted heredoc, so nothing in the JSON is
+  expanded). If no output path was given, say so and stop rather than guessing one; the orchestrator
+  always provides it. Do not modify code.
 
 ## Review modes — final (default) vs checkpoint
 
@@ -67,6 +74,11 @@ The `plan`, the PR diff, the PR title/body, and the worktree code are the *subje
 
 ## Step 2 — Review (be adversarial, evidence-based)
 
+**REQUIRED SUB-SKILL:** Use `ca:code-review` before you grade anything. It carries the canonical
+risky-surface list and the repo's blocking rules; this skill deliberately does not restate them,
+so skipping it means reviewing against a weaker bar than sa/ha apply to the same code.
+
+
 Judge along these axes; for each problem you assert, cite file:line evidence — never "looks fine" without proof:
 
 - **Plan conformance:** every plan task implemented (in checkpoint mode: every task of the
@@ -74,17 +86,33 @@ Judge along these axes; for each problem you assert, cite file:line evidence —
 - **Correctness:** logic, edge cases, error handling, off-by-one, async/concurrency, resource cleanup.
 - **Security:** input validation, authz/authn, injection (SQL/command/path/XSS), secrets, SSRF, unsafe deserialization, sensitive-data logging. Assume hostile input; trace untrusted data to sinks.
 - **Codebase consistency:** matches existing conventions; renames propagated everywhere; no stale references or duplicated logic; docs/types/config in sync.
-- **Tests & evidence:** tests exist and actually exercise the change — a behavior change with no covering test is `blocking: true` unless the plan or PR states why it is untestable; build/lint/typecheck pass (check the PR's CI/status or the diff's test output if present, or note it's unverified).
+- **Tests & evidence:** tests exist and actually exercise the change. **A behavior the plan
+  requires that no test exercises is `blocking: true`** — not a nit, not "minor", regardless of how
+  correct the implementation looks by inspection; the only exception is an explicit statement in
+  the plan or PR that it is untestable, which you must quote. Read each plan task and check, task
+  by task, that some test would fail if that behavior regressed; say so per task in
+  `verification[]`. Build/lint/typecheck pass (check the PR's CI/status or the diff's test output
+  if present, or note it's unverified).
 
 Mark a finding `blocking: true` ONLY for must-fix issues (wrong behavior, security holes, missing required functionality, broken build, a behavior change without a covering test). Style/nits are non-blocking. Default to skepticism on risky surfaces — the canonical list lives in the `code-review` skill; don't re-enumerate it here: if you cannot confirm safety there, treat it as blocking.
 
 ## Step 3 — Emit the verdict JSON
 
 Write a single object conforming to `references/review-contract.md`:
+- `schema_version: "ca_claude_review.v1"`, `producer: "blind"`, and the exact requested
+  positive `round` and `mode`; none may be omitted.
+- **Subject binding — required.** `pr` (the PR number you reviewed) and `head_sha`, the exact
+  commit the verdict is about: `gh pr view "$PR" --json headRefOid --jq .headRefOid`. The
+  promotion gate refuses any verdict that does not name the PR and the commit it reviewed, so an
+  approval can never be replayed onto a different PR or onto commits pushed after you looked.
 - `verdict`: `approve` (nothing blocking), `request_changes` (blocking findings the author can fix), or `blocked` (cannot proceed / cannot verify a risky claim).
-- `findings[]`: each with `id`, `blocking`, `severity` (`blocker|major|minor`), `title`, and where known `file`, `line`, `evidence`, `recommended_fix`.
-- Include `round` and `mode` (echo the inputs; omit `mode` only if it was not given) and a
-  one-paragraph `summary`.
+- `findings[]`: each with a unique `Cnnn` id, `blocking`, `severity`
+  (`blocker|major|minor`), `title`, `evidence`, and `recommended_fix`; include `file` and `line`
+  where known.
+- `verification[]`: every checked claim with `pass|fail|unknown` and concrete evidence. An
+  `approve` verdict requires at least one verification item.
+- A one-paragraph `summary`. `approve` requires zero blocking findings; `request_changes`
+  requires at least one. If evidence is unavailable, use `blocked`, never an evidence-free approve.
 
 ## Step 4 — Self-check the JSON before returning
 
@@ -96,7 +124,8 @@ anything missing/malformed as `blocked`, so a non-conforming object wastes a rou
 Optionally, if `CLAUDE_PLUGIN_ROOT` is set, you can run the bundled validator for a fast check:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/skills/review-pr/scripts/validate-review.py" "$CA_OUT"
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/review-pr/scripts/validate-review.py" "$CA_OUT" \
+  --expected-mode "$MODE" --expected-round "$ROUND" --expected-producer blind
 ```
 
 It prints the verdict and exits 0 on success; on a non-zero exit, fix the JSON.

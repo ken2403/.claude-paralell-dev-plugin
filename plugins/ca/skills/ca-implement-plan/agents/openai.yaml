@@ -1,0 +1,7 @@
+interface:
+  display_name: "ca: Implement Plan"
+  short_description: "Build a plan with Claude review rounds"
+  default_prompt: "Use $ca-implement-plan to build a saved plan file with Claude review rounds."
+
+policy:
+  allow_implicit_invocation: false

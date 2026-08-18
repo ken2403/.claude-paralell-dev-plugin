@@ -169,7 +169,12 @@ prompt = f"""You are Codex performing an advisory second-opinion review for the 
 Return exactly one JSON object matching schema ca_codex_review.v1. Do not include Markdown.
 There is deliberately no verdict field; your findings never gate the PR directly.
 Finding ids must be X001, X002, ... and each finding must include blocking, severity,
-title, evidence, and recommended_fix. Use blocking:true only for must-fix issues.
+file, line, title, evidence, and recommended_fix. Use null for file/line when not known.
+Use blocking:true only for must-fix issues.
+
+This is an INDEPENDENT second opinion. Judge from the plan and diff below plus the code in the
+worktree. Do not read review artifacts under .ca/runs or .ca/reviews — those are other reviewers'
+verdicts from this or an earlier round, and reading them turns a second opinion into an echo.
 
 Round: {round_s}
 PR metadata:
@@ -236,7 +241,14 @@ Path(err_path).write_text(proc.stderr, encoding="utf-8")
 sys.exit(proc.returncode)
 PY
 then
-  echo "codex-review: codex exec failed; stderr: $ERR" >&2
+  {
+    echo "codex-review: codex exec failed; stderr: $ERR"
+    if [ -s "$ERR" ]; then
+      echo "--- codex stderr tail ---"
+      tail -40 "$ERR"
+      echo "--- end stderr tail ---"
+    fi
+  } >&2
   exit 3
 fi
 
@@ -286,7 +298,7 @@ for i, finding in enumerate(findings):
     extra = set(finding) - ALLOWED_FINDING
     if extra:
         fail(f"findings[{i}] unknown keys: {sorted(extra)}")
-    for key in ("id", "blocking", "severity", "title", "evidence", "recommended_fix"):
+    for key in ("id", "blocking", "severity", "file", "line", "title", "evidence", "recommended_fix"):
         if key not in finding:
             fail(f"findings[{i}].{key} is required")
     if not re.match(r"^X[0-9]{3}$", finding["id"]):
@@ -295,11 +307,19 @@ for i, finding in enumerate(findings):
         fail(f"findings[{i}].blocking must be boolean")
     if finding["severity"] not in SEVERITIES:
         fail(f"findings[{i}].severity must be one of {sorted(SEVERITIES)}")
-    for key, max_len in (("title", 200), ("evidence", 4000), ("recommended_fix", 2000), ("file", 500)):
-        if key in finding and (not isinstance(finding[key], str) or len(finding[key]) > max_len):
+    for key, max_len in (("title", 200), ("evidence", 4000), ("recommended_fix", 2000)):
+        if not isinstance(finding[key], str) or len(finding[key]) > max_len:
             fail(f"findings[{i}].{key} must be a bounded string")
-    if "line" in finding and (not isinstance(finding["line"], int) or finding["line"] < 1):
-        fail(f"findings[{i}].line must be a positive integer")
+    if finding["file"] is not None and (
+        not isinstance(finding["file"], str) or len(finding["file"]) > 500
+    ):
+        fail(f"findings[{i}].file must be null or a bounded string")
+    if finding["line"] is not None and (
+        not isinstance(finding["line"], int)
+        or isinstance(finding["line"], bool)
+        or finding["line"] < 1
+    ):
+        fail(f"findings[{i}].line must be null or a positive integer")
 json.dump(data, open(out_path, "w", encoding="utf-8"), indent=2, sort_keys=True)
 open(out_path, "a", encoding="utf-8").write("\n")
 print(data["coverage"])

@@ -6,6 +6,7 @@
   "required": ["schema_version", "summary", "coverage", "findings"],
   "properties": {
     "schema_version": {
+      "type": "string",
       "const": "ca_codex_review.v1"
     },
     "summary": {
@@ -13,6 +14,7 @@
       "maxLength": 2000
     },
     "coverage": {
+      "type": "string",
       "enum": ["full", "partial"]
     },
     "findings": {
@@ -21,7 +23,7 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["id", "blocking", "severity", "title", "evidence", "recommended_fix"],
+        "required": ["id", "blocking", "severity", "file", "line", "title", "evidence", "recommended_fix"],
         "properties": {
           "id": {
             "type": "string",
@@ -31,14 +33,15 @@
             "type": "boolean"
           },
           "severity": {
+            "type": "string",
             "enum": ["blocker", "major", "minor"]
           },
           "file": {
-            "type": "string",
+            "type": ["string", "null"],
             "maxLength": 500
           },
           "line": {
-            "type": "integer",
+            "type": ["integer", "null"],
             "minimum": 1
           },
           "title": {

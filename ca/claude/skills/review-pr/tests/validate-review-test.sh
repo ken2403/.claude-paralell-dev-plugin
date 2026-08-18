@@ -7,15 +7,8 @@ TMP="${TMPDIR:-/tmp}/validate-review-test.$$"
 trap 'rm -rf "$TMP"' EXIT
 mkdir -p "$TMP"
 
-write_json() {
-  local path="$1"
-  shift
-  printf '%s\n' "$*" > "$path"
-}
-
 expect_status() {
-  local want="$1"
-  shift
+  local want="$1"; shift
   set +e
   "$@" >/dev/null 2>"$TMP/err"
   local got=$?
@@ -27,144 +20,71 @@ expect_status() {
   fi
 }
 
-blind="$TMP/blind.json"
-write_json "$blind" '{
-  "schema_version": "ca_claude_review.v1",
-  "round": 1,
-  "mode": "final",
-  "verdict": "request_changes",
-  "summary": "Blind review",
-  "findings": [
-    {"id": "C001", "blocking": true, "severity": "major", "title": "Blind blocker"}
-  ],
-  "verification": []
-}'
+cat > "$TMP/approve.json" <<'JSON'
+{"schema_version":"ca_claude_review.v1","producer":"blind","round":1,"mode":"final","verdict":"approve","summary":"Ready.","findings":[],"verification":[{"claim":"tests pass","result":"pass","evidence":"CI check 42 passed."}]}
+JSON
+expect_status 0 python3 "$VALIDATOR" "$TMP/approve.json" \
+  --expected-mode final --expected-round 1 --expected-producer blind
 
-synth="$TMP/synth.json"
-write_json "$synth" '{
-  "schema_version": "ca_claude_review.v1",
-  "producer": "synthesis",
-  "round": 1,
-  "mode": "final",
-  "verdict": "approve",
-  "summary": "Synthesized review",
-  "findings": [],
-  "verification": [],
-  "second_opinion": {
-    "provider": "codex",
-    "status": "used",
-    "coverage": "full",
-    "ledger": [
-      {"id": "X001", "adjudication": "refuted", "evidence": "Diff shows no issue."}
-    ],
-    "prior_findings_rechecked": true,
-    "notes": "ok"
-  },
-  "resolved_blind_findings": [
-    {"id": "C001", "reason": "false positive", "evidence": "Checked file.", "new_severity": "none"}
-  ]
-}'
-python3 "$VALIDATOR" "$synth" "$blind" >/dev/null
+cat > "$TMP/blind.json" <<'JSON'
+{"schema_version":"ca_claude_review.v1","producer":"blind","round":1,"mode":"final","verdict":"request_changes","summary":"Blind review.","findings":[{"id":"C001","blocking":true,"severity":"major","title":"Blind blocker","evidence":"src/a.py:4 violates the plan.","recommended_fix":"Correct the branch and add a regression test."}],"verification":[]}
+JSON
+expect_status 0 python3 "$VALIDATOR" "$TMP/blind.json"
 
-silent_drop="$TMP/silent-drop.json"
-write_json "$silent_drop" '{
-  "schema_version": "ca_claude_review.v1",
-  "producer": "synthesis",
-  "round": 1,
-  "mode": "final",
-  "verdict": "approve",
-  "summary": "Dropped blind blocker",
-  "findings": [],
-  "verification": [],
-  "second_opinion": {
-    "provider": "codex",
-    "status": "used",
-    "coverage": "full",
-    "ledger": [],
-    "prior_findings_rechecked": true
-  },
-  "resolved_blind_findings": []
-}'
-expect_status 1 python3 "$VALIDATOR" "$silent_drop" "$blind"
+cat > "$TMP/codex.json" <<'JSON'
+{"schema_version":"ca_codex_review.v1","summary":"Second opinion.","coverage":"full","findings":[{"id":"X001","blocking":true,"severity":"major","file":"src/b.py","line":9,"title":"Codex claim","evidence":"src/b.py:9 drops the error.","recommended_fix":"Propagate the error."}]}
+JSON
+cat > "$TMP/synth.json" <<'JSON'
+{"schema_version":"ca_claude_review.v1","producer":"synthesis","round":1,"mode":"final","verdict":"approve","summary":"Claims resolved.","findings":[],"verification":[{"claim":"both claims checked","result":"pass","evidence":"Inspected src/a.py and src/b.py."}],"second_opinion":{"provider":"codex","status":"used","coverage":"full","ledger":[{"id":"X001","adjudication":"refuted","evidence":"The caller handles the error at src/b.py:12."}],"prior_findings_rechecked":true},"resolved_blind_findings":[{"id":"C001","reason":"Plan reading was incomplete.","evidence":"The next branch at src/a.py:8 handles it.","new_severity":"none"}]}
+JSON
+expect_status 0 python3 "$VALIDATOR" "$TMP/synth.json" --blind "$TMP/blind.json" \
+  --second-opinion "$TMP/codex.json" --expected-mode final --expected-round 1 \
+  --expected-producer synthesis
 
-bad_ledger="$TMP/bad-ledger.json"
-write_json "$bad_ledger" '{
-  "schema_version": "ca_claude_review.v1",
-  "producer": "synthesis",
-  "round": 1,
-  "mode": "final",
-  "verdict": "approve",
-  "summary": "Bad ledger",
-  "findings": [{"id": "C001", "blocking": true, "severity": "major", "title": "Still present"}],
-  "verification": [],
-  "second_opinion": {
-    "provider": "codex",
-    "status": "used",
-    "coverage": "full",
-    "ledger": [
-      {"id": "X001", "adjudication": "maybe", "evidence": "nope"}
-    ],
-    "prior_findings_rechecked": true
-  },
-  "resolved_blind_findings": []
-}'
-expect_status 1 python3 "$VALIDATOR" "$bad_ledger" "$blind"
+python3 - "$TMP/synth.json" "$TMP/silent-drop.json" <<'PY'
+import json, sys
+d=json.load(open(sys.argv[1])); d["resolved_blind_findings"]=[]
+json.dump(d, open(sys.argv[2], "w"))
+PY
+expect_status 1 python3 "$VALIDATOR" "$TMP/silent-drop.json" --blind "$TMP/blind.json" \
+  --second-opinion "$TMP/codex.json"
 
-blind_missing_id="$TMP/blind-missing-id.json"
-write_json "$blind_missing_id" '{
-  "schema_version": "ca_claude_review.v1",
-  "round": 1,
-  "mode": "final",
-  "verdict": "request_changes",
-  "summary": "Blind review",
-  "findings": [
-    {"blocking": true, "severity": "major", "title": "Blind blocker"}
-  ],
-  "verification": []
-}'
-expect_status 1 python3 "$VALIDATOR" "$synth" "$blind_missing_id"
+python3 - "$TMP/synth.json" "$TMP/missing-ledger.json" <<'PY'
+import json, sys
+d=json.load(open(sys.argv[1])); d["second_opinion"]["ledger"]=[]
+json.dump(d, open(sys.argv[2], "w"))
+PY
+expect_status 1 python3 "$VALIDATOR" "$TMP/missing-ledger.json" --blind "$TMP/blind.json" \
+  --second-opinion "$TMP/codex.json"
 
-# Plain (non-synthesis) reviews may omit finding ids entirely...
-plain_no_ids="$TMP/plain-no-ids.json"
-write_json "$plain_no_ids" '{
-  "schema_version": "ca_claude_review.v1",
-  "round": 1,
-  "mode": "final",
-  "verdict": "request_changes",
-  "summary": "plain review without ids",
-  "findings": [
-    {"blocking": true, "severity": "major", "title": "No id, still valid"}
-  ],
-  "verification": []
-}'
-expect_status 0 python3 "$VALIDATOR" "$plain_no_ids"
+python3 - "$TMP/approve.json" "$TMP/case.json" <<'PY'
+import json, sys
+d=json.load(open(sys.argv[1])); d.pop("schema_version"); json.dump(d, open(sys.argv[2], "w"))
+PY
+expect_status 1 python3 "$VALIDATOR" "$TMP/case.json"
 
-# ...but a present id must still match the pattern,
-plain_bad_id="$TMP/plain-bad-id.json"
-write_json "$plain_bad_id" '{
-  "schema_version": "ca_claude_review.v1",
-  "verdict": "approve",
-  "summary": "bad id format",
-  "findings": [
-    {"id": "BOGUS-1", "blocking": false, "title": "Malformed id"}
-  ],
-  "verification": []
-}'
-expect_status 1 python3 "$VALIDATOR" "$plain_bad_id"
+python3 - "$TMP/approve.json" "$TMP/case.json" <<'PY'
+import json, sys
+d=json.load(open(sys.argv[1])); d["verification"]=[]; json.dump(d, open(sys.argv[2], "w"))
+PY
+expect_status 1 python3 "$VALIDATOR" "$TMP/case.json"
 
-# ...and synthesis output still requires ids on every finding.
-synth_missing_finding_id="$TMP/synth-missing-finding-id.json"
-write_json "$synth_missing_finding_id" '{
-  "schema_version": "ca_claude_review.v1",
-  "producer": "synthesis",
-  "verdict": "approve",
-  "summary": "synthesis without finding ids",
-  "findings": [
-    {"blocking": false, "title": "Missing id on synthesis output"}
-  ],
-  "verification": [],
-  "second_opinion": {"provider": "codex", "status": "used", "coverage": "full", "ledger": []}
-}'
-expect_status 1 python3 "$VALIDATOR" "$synth_missing_finding_id"
+python3 - "$TMP/blind.json" "$TMP/case.json" <<'PY'
+import json, sys
+d=json.load(open(sys.argv[1])); d["verdict"]="approve"; json.dump(d, open(sys.argv[2], "w"))
+PY
+expect_status 1 python3 "$VALIDATOR" "$TMP/case.json"
+
+cat > "$TMP/blocked-empty.json" <<'JSON'
+{"schema_version":"ca_claude_review.v1","producer":"blind","round":1,"mode":"final","verdict":"blocked","summary":"CI is unreachable.","findings":[],"verification":[{"claim":"CI status","result":"unknown","evidence":"No authenticated GitHub connection."}]}
+JSON
+expect_status 0 python3 "$VALIDATOR" "$TMP/blocked-empty.json"
+expect_status 1 python3 "$VALIDATOR" "$TMP/blocked-empty.json" --expected-mode checkpoint
+expect_status 1 python3 "$VALIDATOR" "$TMP/blocked-empty.json" --expected-round 2
+
+cat > "$TMP/request-empty.json" <<'JSON'
+{"schema_version":"ca_claude_review.v1","producer":"blind","round":1,"mode":"final","verdict":"request_changes","summary":"Incoherent.","findings":[],"verification":[]}
+JSON
+expect_status 1 python3 "$VALIDATOR" "$TMP/request-empty.json"
 
 echo "validate-review-test.sh: ok"
