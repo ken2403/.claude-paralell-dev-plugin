@@ -11,17 +11,18 @@
 #      (adversarial pid-regex bait)        → skipped, NEVER unlocked
 #   6. merged + claude-session lock naming pid 1 (another user's LIVE process;
 #      `kill -0` would misread EPERM as dead) → skipped as RUNNING
-#   7. empty orphan dirs (child + group)   → removed
-#   8. non-empty orphan dir                → kept and reported
-#   9. UNREADABLE orphan dir (find/rmdir fail) → kept + reported, script
+#   7. merged + lock whose liveness cannot be inspected → skipped (fail closed)
+#   8. empty orphan dirs (child + group)   → removed
+#   9. non-empty orphan dir                → kept and reported
+#  10. UNREADABLE orphan dir (find/rmdir fail) → kept + reported, script
 #      completes (no set -e abort) and the other orphans are still processed
-#  10. registered depth-1 worktree with an empty subdir → subdir untouched
+#  11. registered depth-1 worktree with an empty subdir → subdir untouched
 #
 # Scenario B (fresh repo, zero merged worktrees):
-#  11. the EARLY-EXIT path also sweeps orphans ("No merged worktrees" + removal)
+#  12. the EARLY-EXIT path also sweeps orphans ("No merged worktrees" + removal)
 #
 # Scenario C (fresh repo, launched FROM a linked worktree):
-#  12. the sweep is anchored at the MAIN checkout (REMOVE_FROM), so orphans
+#  13. the sweep is anchored at the MAIN checkout (REMOVE_FROM), so orphans
 #      under the main checkout's .claude/worktrees are swept even when clean.sh
 #      runs inside a linked worktree (GIT_ROOT != main); a merged sibling is
 #      still removed from that launch point too.
@@ -44,6 +45,17 @@ mkdir -p "$TMP/bin"
 export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null
 printf '#!/bin/sh\nexit 1\n' > "$TMP/bin/gh"
 chmod +x "$TMP/bin/gh"
+cat > "$TMP/bin/ps" <<'SH'
+#!/bin/sh
+[ "${1:-}" = "-p" ] || exit 2
+case "${2:-}" in
+  1|"${CA_TEST_LIVE_PID:-}") exit 0;;
+  "${CA_TEST_UNKNOWN_PID:-}") exit 2;;
+  *) exit 1;;
+esac
+SH
+chmod +x "$TMP/bin/ps"
+export CA_TEST_LIVE_PID="$$" CA_TEST_UNKNOWN_PID=42424242
 export PATH="$TMP/bin:$PATH"
 
 fail() { echo "FAIL: $*" >&2; exit 1; }
@@ -75,6 +87,7 @@ make_wt open-branch wt/open-branch
 # 3 stale claude-session lock (a pid that has provably exited)
 make_wt merged-stale-lock wt/merged-stale-lock; merge_branch wt/merged-stale-lock
 bash -c ':' & DEAD_PID=$!; wait "$DEAD_PID" 2>/dev/null || true
+export DEAD_PID
 git -C "$REPO" worktree lock --reason "claude session test (pid $DEAD_PID start now)" \
   "$REPO/.claude/worktrees/ha/merged-stale-lock"
 # 3b stale claude-session lock whose worktree NAME carries "(pid <live>" bait:
@@ -96,17 +109,21 @@ git -C "$REPO" worktree lock --reason "KEEP: rapid 4999999 files experiment, do 
 make_wt merged-eperm-lock wt/merged-eperm-lock; merge_branch wt/merged-eperm-lock
 git -C "$REPO" worktree lock --reason "claude session other (pid 1 start now)" \
   "$REPO/.claude/worktrees/ha/merged-eperm-lock"
-# 7 empty orphans / 8 non-empty orphan
+# 7 liveness inspection denied: preserve the merged, locked worktree
+make_wt merged-unknown-lock wt/merged-unknown-lock; merge_branch wt/merged-unknown-lock
+git -C "$REPO" worktree lock --reason "claude session restricted (pid $CA_TEST_UNKNOWN_PID start now)" \
+  "$REPO/.claude/worktrees/ha/merged-unknown-lock"
+# 8 empty orphans / 9 non-empty orphan
 mkdir -p "$REPO/.claude/worktrees/ca" "$REPO/.claude/worktrees/sa/empty-child"
 mkdir -p "$REPO/.claude/worktrees/leftover-with-content"
 echo data > "$REPO/.claude/worktrees/leftover-with-content/file.txt"
-# 9 unreadable non-empty orphan (find/rmdir must fail without aborting the run)
+# 10 unreadable non-empty orphan (find/rmdir must fail without aborting the run)
 #    LOAD-BEARING fixture: it is also what discriminates the `|| true` guards on
 #    the two finds — without it, deleting those guards would go undetected.
 mkdir -p "$REPO/.claude/worktrees/unreadable-orphan"
 echo hidden > "$REPO/.claude/worktrees/unreadable-orphan/secret.txt"
 chmod 000 "$REPO/.claude/worktrees/unreadable-orphan"
-# 10 registered depth-1 worktree (UNMERGED, so it stays) owning an empty subdir
+# 11 registered depth-1 worktree (UNMERGED, so it stays) owning an empty subdir
 git -C "$REPO" worktree add -q -b wt/depth1 "$REPO/.claude/worktrees/depth1wt" main
 ( cd "$REPO/.claude/worktrees/depth1wt" \
   && echo d1 > d1.txt && git add d1.txt \
@@ -136,17 +153,20 @@ echo "$OUT" | grep -q "Stale claude-session lock (holder pid 4999999" && fail "p
 # 6 EPERM trap: pid 1 is alive even though kill -0 fails for non-root
 [ -d "$REPO/.claude/worktrees/ha/merged-eperm-lock" ] || fail "worktree locked by another user's live pid was removed"
 echo "$OUT" | grep -q "locked by a RUNNING process (pid 1" || fail "pid 1 not classified as running"
-# 7 empty orphans removed (child, then folded-up group; bare group too)
+# 7 unknown liveness must fail closed
+[ -d "$REPO/.claude/worktrees/ha/merged-unknown-lock" ] || fail "unknown-liveness lock was removed"
+echo "$OUT" | grep -q "cannot verify lock-holder liveness (pid $CA_TEST_UNKNOWN_PID" || fail "unknown liveness was not reported"
+# 8 empty orphans removed (child, then folded-up group; bare group too)
 [ ! -d "$REPO/.claude/worktrees/ca" ] || fail "empty orphan group dir not removed"
 [ ! -d "$REPO/.claude/worktrees/sa" ] || fail "emptied orphan group dir not folded up"
-# 8 non-empty orphan kept and reported
+# 9 non-empty orphan kept and reported
 [ -d "$REPO/.claude/worktrees/leftover-with-content" ] || fail "non-empty orphan was deleted"
 echo "$OUT" | grep -q "ORPHANED" || fail "non-empty orphan not reported"
-# 9 unreadable orphan: kept + reported; the run completed (we got here with exit 0)
+# 10 unreadable orphan: kept + reported; the run completed (we got here with exit 0)
 [ -d "$REPO/.claude/worktrees/unreadable-orphan" ] || fail "unreadable orphan disappeared"
 echo "$OUT" | grep -q "unreadable-orphan" || fail "unreadable orphan not reported"
 echo "$OUT" | grep -q "=== Cleanup Complete ===" || fail "run aborted before final summary"
-# 10 registered depth-1 worktree's own empty subdir untouched
+# 11 registered depth-1 worktree's own empty subdir untouched
 [ -d "$REPO/.claude/worktrees/depth1wt/emptybuilddir" ] || fail "subdir inside a registered worktree was deleted"
 
 # ============================ Scenario B =====================================

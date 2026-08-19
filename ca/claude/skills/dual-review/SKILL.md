@@ -1,8 +1,8 @@
 ---
 name: dual-review
-description: Run the ca dual-model review (Codex second opinion + blind Claude review + Claude synthesis) standalone on any PR — no implement loop required. Use to get a Claude-and-Codex joint review of a pull request, to re-review a PR after the ca loop finished, or when the user says "dual review this PR", "review with both Claude and Codex", or invokes /ca:dual-review. Emits the same ca_claude_review.v1 verdict as the loop's final review.
+description: Review a pull request in ca. Runs the dual-model review — a blind Claude review and an offline Codex second opinion in parallel, then a Claude synthesis pass that adjudicates them into one ca_claude_review.v1 verdict. This is the entry point for reviewing any PR by hand, inside or outside the implement loop. Use when the user says review this PR, dual review this PR, review with both Claude and Codex, re-review after the ca loop, or invokes /ca:dual-review. Pass --claude-only for a single-model review.
 license: MIT
-argument-hint: '[pr-number] [plan-path] [--comment]'
+argument-hint: '[pr-number] [plan-path] [--comment] [--claude-only]'
 effort: medium
 disable-model-invocation: true
 allowed-tools: Read, Grep, Glob, Bash
@@ -10,7 +10,7 @@ allowed-tools: Read, Grep, Glob, Bash
 
 # dual-review
 
-Run the ca loop's dual-model final review as a **standalone command**: an offline
+**The way to review a PR in ca.** Run the loop's dual-model final review as a standalone command: an offline
 Codex second opinion and a blind Claude review run in parallel, then a separate
 Claude synthesis call adjudicates the Codex findings into one
 `ca_claude_review.v1` verdict. Works on any PR — mid-loop, after the loop, or on
@@ -64,9 +64,15 @@ bash "$CLAUDE_SKILL_CA_DIR/scripts/dual-review.sh" \
   --round "$ROUND" --out-dir "$OUTDIR"
 ```
 
-It runs both legs in parallel (the blind review cannot read the Codex output —
-it is being produced concurrently by a process it never opens), synthesizes when
-Codex found anything, skips synthesis on a clean full-coverage Codex pass, and
+Pass `--claude-only` when the user asks for a single-model review (or `codex` is deliberately out
+of the picture). It runs the same blind Claude leg and emits the same verdict contract; no Codex
+process is started and the meta sidecar records `dual_review:false`. Do NOT reach for
+`/ca:review-pr` for this — that skill is this command's internal blind leg, not a second entry
+point.
+
+It runs both legs in parallel and keeps the current-round Codex output outside the
+worktree until the blind review finishes, synthesizes when Codex found anything, skips
+synthesis on a clean full-coverage Codex pass, and
 degrades to Claude-only with a machine-readable reason when the Codex leg fails.
 If it exits non-zero, report the failure verbatim — do not improvise a verdict.
 
@@ -92,11 +98,8 @@ gh pr review "$PR" --comment --body "<summary>"
 
 ## Notes
 
-- This is the standalone twin of the implement loop's `CA_DUAL_REVIEW=1` final
-  review — same scripts, same contract, same fail-closed semantics. One
-  deliberate difference: a Codex-leg input-fetch failure (exit 4) degrades here
-  instead of stopping, because the blind leg fetched the same PR in parallel —
-  an asymmetric failure is transient.
+- This is the same orchestrator the implement loop runs for its final review (dual by default) —
+  same parallel isolation, scripts, contract, and fail-closed semantics.
 - Verdicts from this command do NOT promote a draft PR; only the loop's
   final-mode approve does (the loop owns `gh pr ready`).
 - The `code-review` standards skill (canonical risky-surface list, four

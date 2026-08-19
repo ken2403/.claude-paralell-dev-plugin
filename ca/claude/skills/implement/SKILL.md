@@ -19,7 +19,9 @@ Given the plan path, run the bundled script (it creates a `ca/<plan-id>` worktre
 bash "${CLAUDE_SKILL_DIR}/scripts/new-worktree.sh" /abs/path/to/plan.md
 ```
 
-`CA_BASE` (default `main`) overrides the base branch. The script prints the worktree path and branch.
+`CA_BASE` optionally overrides the base branch. Otherwise the script detects origin HEAD, then a
+local `main`, `master`, `develop`, or `dev` branch. It records the resolved base with the staged
+plan and prints the worktree path, branch, and base.
 
 ## Step 2 — Print the Codex kickoff
 

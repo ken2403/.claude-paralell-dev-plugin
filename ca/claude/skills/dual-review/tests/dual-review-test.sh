@@ -11,6 +11,14 @@
 #   4. Degrade in a LATER round after a Codex round → meta carries
 #                                     prior_findings_rechecked:false
 #   5. Blind Claude review fails    → dual-review exits 1, no final JSON
+#   6. Blind Claude review times out → dual-review exits 1, no final JSON
+#   8. --claude-only: no Codex process is started at all, the blind verdict gates directly,
+#      and the meta says dual_review:false / codex disabled. This is the single-model review
+#      that used to need its own command.
+#   7. ISOLATION: while the Codex leg runs, the blind Claude verdict is NOT visible
+#      anywhere in the worktree/out-dir it can read. The Codex leg reviews with read
+#      access to the tree, so publishing the blind answer early would turn the second
+#      opinion into an echo of the first.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../../.." && pwd)"
@@ -39,17 +47,22 @@ chmod +x "$TMP/bin/gh"; export GH_BIN="$TMP/bin/gh"
 cat > "$TMP/bin/claude" <<'SH'
 #!/usr/bin/env bash
 set -euo pipefail
-[ "${CLAUDE_MODE:-ok}" = "ok" ] || exit 1
+case "${CLAUDE_MODE:-ok}" in
+  ok) ;;
+  fail) exit 1;;
+  sleep) sleep 5;;
+  *) exit 9;;
+esac
 case "$*" in
   *synthesize-review*)
     cat > "${CA_OUT:?}" <<'JSON'
-{"schema_version":"ca_claude_review.v1","producer":"synthesis","round":1,"mode":"final","verdict":"request_changes","summary":"synth","findings":[{"id":"C001","blocking":true,"severity":"major","title":"blind blocker kept"}],"verification":[],"second_opinion":{"provider":"codex","status":"used","coverage":"full","ledger":[{"id":"X001","adjudication":"refuted","evidence":"checked the diff"}],"prior_findings_rechecked":true},"resolved_blind_findings":[]}
+{"schema_version":"ca_claude_review.v1","producer":"synthesis","round":1,"mode":"final","pr":7,"head_sha":"0123456789abcdef0123456789abcdef01234567","verdict":"request_changes","summary":"synth","findings":[{"id":"C001","blocking":true,"severity":"major","title":"blind blocker kept","evidence":"a.txt:1","recommended_fix":"fix it"}],"verification":[],"second_opinion":{"provider":"codex","status":"used","coverage":"full","ledger":[{"id":"X001","adjudication":"refuted","evidence":"checked the diff"}],"prior_findings_rechecked":true},"resolved_blind_findings":[]}
 JSON
     ;;
   *review-pr*)
-    cat > "${CA_OUT:?}" <<'JSON'
-{"schema_version":"ca_claude_review.v1","producer":"blind","round":1,"mode":"final","verdict":"request_changes","summary":"blind","findings":[{"id":"C001","blocking":true,"severity":"major","title":"blind blocker"}],"verification":[]}
-JSON
+    review_round=1
+    case "$*" in *"round=2"*) review_round=2;; esac
+    printf '{"schema_version":"ca_claude_review.v1","producer":"blind","round":%s,"mode":"final","pr":7,"head_sha":"0123456789abcdef0123456789abcdef01234567","verdict":"request_changes","summary":"blind","findings":[{"id":"C001","blocking":true,"severity":"major","title":"blind blocker","evidence":"a.txt:1","recommended_fix":"fix it"}],"verification":[]}\n' "$review_round" > "${CA_OUT:?}"
     ;;
   *) exit 1;;
 esac
@@ -62,8 +75,13 @@ cat > "$TMP/bin/codex" <<'SH'
 set -euo pipefail
 cat > /dev/null   # consume the prompt on stdin
 case "${CODEX_MODE:-finding}" in
-  finding) printf '{"schema_version":"ca_codex_review.v1","summary":"codex","coverage":"full","findings":[{"id":"X001","blocking":true,"severity":"major","title":"codex claim","evidence":"e","recommended_fix":"f"}]}\n';;
+  finding) printf '{"schema_version":"ca_codex_review.v1","summary":"codex","coverage":"full","findings":[{"id":"X001","blocking":true,"severity":"major","file":"a.txt","line":1,"title":"codex claim","evidence":"e","recommended_fix":"f"}]}\n';;
   clean)   printf '{"schema_version":"ca_codex_review.v1","summary":"codex","coverage":"full","findings":[]}\n';;
+  leakprobe)
+    sleep 1   # let the (instant) blind leg finish first
+    { ls "${CA_TEST_OUTDIR:?}" 2>/dev/null | grep -c 'blind' || true; } > "${CA_TEST_LEAK_MARKER:?}"
+    printf '{"schema_version":"ca_codex_review.v1","summary":"codex","coverage":"full","findings":[]}\n'
+    ;;
 esac
 SH
 chmod +x "$TMP/bin/codex"; export CODEX_BIN="$TMP/bin/codex"
@@ -101,5 +119,41 @@ RC=$?
 set -e
 [ "$RC" -ne 0 ] || fail "case5: expected non-zero exit when the blind review fails"
 [ ! -f "$D5/review-round-1.json" ] || fail "case5: a final verdict was fabricated despite blind failure"
+
+# 6. Blind leg timeout -> hard exit, no verdict fabricated
+D6="$TMP/out/case6"
+set +e
+CA_CLAUDE_REVIEW_TIMEOUT=1 CLAUDE_MODE=sleep bash "$SCRIPT" --pr 7 --plan "$PLAN" --worktree "$WT" --round 1 --out-dir "$D6" >/dev/null 2>&1
+RC=$?
+set -e
+[ "$RC" -ne 0 ] || fail "case6: expected non-zero exit when the blind review timed out"
+[ ! -f "$D6/review-round-1.json" ] || fail "case6: a final verdict was fabricated after timeout"
+
+# 7. the blind verdict must not be readable by the Codex leg while it is still reviewing
+D7="$TMP/out/case7"
+export CA_TEST_OUTDIR="$D7" CA_TEST_LEAK_MARKER="$TMP/leak.marker"
+CODEX_MODE=leakprobe bash "$SCRIPT" --pr 7 --plan "$PLAN" --worktree "$WT" --round 1 --out-dir "$D7" >/dev/null
+[ "$(cat "$TMP/leak.marker")" = "0" ] \
+  || fail "case7: the Codex leg could see $(cat "$TMP/leak.marker") blind artifact(s) mid-review"
+[ -f "$D7/review-round-1.blind.json" ] || fail "case7: the blind review was not published afterwards"
+unset CA_TEST_OUTDIR CA_TEST_LEAK_MARKER
+
+# 8. --claude-only must not start a Codex process at all
+D8="$TMP/out/case8"
+CODEX_MARKER="$TMP/codex.invoked"; rm -f "$CODEX_MARKER"
+cat > "$TMP/bin/codex-tattle" <<SH
+#!/usr/bin/env bash
+echo invoked >> "$CODEX_MARKER"
+cat > /dev/null
+printf '{"schema_version":"ca_codex_review.v1","summary":"x","coverage":"full","findings":[]}\n'
+SH
+chmod +x "$TMP/bin/codex-tattle"
+CODEX_BIN="$TMP/bin/codex-tattle" bash "$SCRIPT" --pr 7 --plan "$PLAN" --worktree "$WT" \
+  --round 1 --out-dir "$D8" --claude-only >/dev/null
+[ ! -f "$CODEX_MARKER" ] || fail "case8: --claude-only still ran the Codex leg"
+grep -q '"dual_review":false' "$D8/review-round-1.meta.json" || fail "case8: meta does not record the single-model run"
+grep -q '"status":"disabled"' "$D8/review-round-1.meta.json" || fail "case8: meta does not disable the second opinion"
+cmp -s "$D8/review-round-1.json" "$D8/review-round-1.blind.json" || fail "case8: final is not the blind review"
+[ ! -f "$D8/review-round-1.codex.json" ] || fail "case8: a Codex artifact appeared"
 
 echo "dual-review-test.sh: ok"

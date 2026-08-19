@@ -8,7 +8,7 @@
       "name": "ca",
       "source": {
         "source": "local",
-        "path": "../../ca/codex"
+        "path": "./plugins/ca"
       },
       "policy": {
         "installation": "AVAILABLE",

@@ -315,9 +315,21 @@ for item in "${MERGED_JOBS[@]}"; do
       continue
     fi
     # Liveness via ps -p, which sees processes of ANY user. (`kill -0` reports
-    # EPERM on another user's LIVE pid, which would misread as "gone".)
-    if ps -p "$lock_pid" >/dev/null 2>&1; then
+    # EPERM on another user's LIVE pid, which would misread as "gone".) A
+    # restricted sandbox can deny `ps` itself; that is UNKNOWN, never proof of
+    # death. Only ps status 1 is accepted as positive evidence that no selected
+    # process exists. Any other failure preserves the lock (fail closed).
+    set +e
+    ps -p "$lock_pid" >/dev/null 2>&1
+    ps_status=$?
+    set -e
+    if [ "$ps_status" -eq 0 ]; then
       echo "  SKIP: locked by a RUNNING process (pid $lock_pid: $lock_reason)"
+      FAILED_JOBS+=("$name")
+      continue
+    fi
+    if [ "$ps_status" -ne 1 ]; then
+      echo "  SKIP: cannot verify lock-holder liveness (pid $lock_pid, ps status $ps_status) — preserving lock"
       FAILED_JOBS+=("$name")
       continue
     fi
