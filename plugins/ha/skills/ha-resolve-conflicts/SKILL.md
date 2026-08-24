@@ -10,12 +10,12 @@ Resolve intent, not markers. Resolve this skill directory from the loaded `SKILL
 
 ## 1. Resolve target and isolation
 
-Resolve the input as a PR number or branch. For a PR, read its head and base. Attach the branch:
+Resolve the input as a PR number or branch. For a PR, preserve its actual `baseRefName` and bind the checkout to `headRefOid`; never replace a PR base with the repository default:
 
 ```bash
-eval "$(bash <skill-dir>/scripts/attach-or-create-worktree.sh "$BRANCH")"
+eval "$(bash <skill-dir>/scripts/resolve-target.sh "$TARGET" "$REPO_ROOT")"
+eval "$(bash <skill-dir>/scripts/attach-or-create-worktree.sh "$BRANCH" "${EXPECTED_HEAD:-}")"
 test -n "${WORKTREE_PATH:-}" || exit 1
-BASE="$(bash <skill-dir>/scripts/detect-base-branch.sh "$WORKTREE_PATH")"
 ```
 
 The helper refuses the main checkout. Use absolute worktree paths and `git -C` for every operation.

@@ -35,6 +35,9 @@ else
   fi
 fi
 
+python3 -c 'import json; d=json.load(open(".agents/plugins/marketplace.json")); got={p["name"]:p["source"]["path"] for p in d["plugins"]}; expected={"ca":"./plugins/ca","ha":"./plugins/ha"}; assert all(got.get(k)==v for k,v in expected.items()), (got,expected)' \
+  || fail "Codex marketplace must map ca and ha to their package directories"
+
 echo "== manifests =="
 python3 -m json.tool .claude-plugin/marketplace.json >/dev/null
 python3 -m json.tool .agents/plugins/marketplace.json >/dev/null
@@ -44,8 +47,6 @@ for plugin in ha sa ca/claude ca/codex plugins/ca plugins/ha; do
   [ -f "$manifest" ] || fail "missing plugin manifest for $plugin"
   python3 -m json.tool "$manifest" >/dev/null
 done
-[ "$(python3 -c 'import json; print(json.load(open(".agents/plugins/marketplace.json"))["plugins"][0]["source"]["path"])')" = "./plugins/ca" ] \
-  || fail "Codex marketplace must point to ./plugins/ca"
 [ ! -e common/.claude-plugin ] || fail "common/ must not be a Claude plugin"
 [ ! -e common/.codex-plugin ] || fail "common/ must not be a Codex plugin"
 [ ! -e common/plugin.json ] || fail "common/ must not be a plugin"
@@ -59,6 +60,7 @@ while IFS= read -r py_file; do
 done < <(find ha sa ca common plugins -type f -name '*.py' | sort)
 
 echo "== Codex plugin and skill validation =="
+python3 common/tests/validate-codex.py plugins/ca plugins/ha
 CODEX_PLUGIN_VALIDATOR="${CODEX_PLUGIN_VALIDATOR:-$HOME/.codex/skills/.system/plugin-creator/scripts/validate_plugin.py}"
 CODEX_SKILL_VALIDATOR="${CODEX_SKILL_VALIDATOR:-$HOME/.codex/skills/.system/skill-creator/scripts/quick_validate.py}"
 if python3 -c 'import yaml' >/dev/null 2>&1 && [ -f "$CODEX_PLUGIN_VALIDATOR" ] && [ -f "$CODEX_SKILL_VALIDATOR" ]; then
@@ -69,7 +71,7 @@ if python3 -c 'import yaml' >/dev/null 2>&1 && [ -f "$CODEX_PLUGIN_VALIDATOR" ] 
     python3 "$CODEX_SKILL_VALIDATOR" "$skill"
   done < <(find plugins/ha/skills -mindepth 1 -maxdepth 1 -type d | sort)
 else
-  echo "::warning::PyYAML or Codex system validators unavailable; run the validators in an environment with PyYAML."
+  echo "::warning::Optional Codex system validators unavailable; checked-in Codex validation still ran."
 fi
 
 echo "== ca contract copies =="

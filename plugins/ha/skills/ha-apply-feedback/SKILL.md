@@ -17,8 +17,8 @@ For each item, verify it against current code before acting. Mark it `valid`, `a
 ## 2. Attach an isolated worktree
 
 ```bash
-BRANCH="$(gh pr view "$PR" --json headRefName --jq .headRefName)"
-eval "$(bash <skill-dir>/scripts/attach-or-create-worktree.sh "$BRANCH")"
+IFS=$'\t' read -r BRANCH HEAD_SHA <<<"$(gh pr view "$PR" --json headRefName,headRefOid --jq '[.headRefName, .headRefOid] | @tsv')"
+eval "$(bash <skill-dir>/scripts/attach-or-create-worktree.sh "$BRANCH" "$HEAD_SHA")"
 test -n "${WORKTREE_PATH:-}" || exit 1
 ```
 

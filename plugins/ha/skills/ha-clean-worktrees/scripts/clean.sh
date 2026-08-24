@@ -174,6 +174,13 @@ while IFS=$'\t' read -r wt_path wt_branch; do
     continue
   fi
 
+  if [ "$wt_branch" = "$BASE_BRANCH" ]; then
+    echo "Branch: $wt_branch"
+    echo "  *** SAFETY BLOCK: base branch worktrees are never cleanup targets ***"
+    UNMERGED_JOBS+=("$name:$wt_branch")
+    continue
+  fi
+
   echo "Branch: $wt_branch"
   if is_branch_merged "$wt_branch" "$BASE_BRANCH"; then
     echo "Status: MERGED into $BASE_BRANCH"

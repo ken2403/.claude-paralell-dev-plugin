@@ -6,6 +6,7 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 root="$(git rev-parse --show-toplevel)"
 git check-ref-format --branch "$branch" >/dev/null
 case "$branch" in -*) echo "new-worktree: branch must not start with '-'" >&2; exit 2;; esac
+base="${2:-$(bash "$script_dir/detect-base-branch.sh" "$root")}"
 
 git_dir="$(git -C "$root" rev-parse --git-dir)"
 git_common="$(git -C "$root" rev-parse --git-common-dir)"
@@ -13,11 +14,14 @@ super="$(git -C "$root" rev-parse --show-superproject-working-tree 2>/dev/null |
 if [ "$git_dir" != "$git_common" ] && [ -z "$super" ]; then
   current="$(git -C "$root" branch --show-current)"
   [ -n "$current" ] || { echo "new-worktree: detached linked worktree cannot be reused" >&2; exit 1; }
+  [ "$current" = "$branch" ] || {
+    echo "new-worktree: current linked worktree is '$current', not requested '$branch'" >&2; exit 1;
+  }
+  [ "$current" != "$base" ] || { echo "new-worktree: refusing base branch worktree" >&2; exit 1; }
   printf 'WORKTREE_PATH=%q\nBRANCH=%q\nREUSED=1\n' "$root" "$current"
   exit 0
 fi
 
-base="${2:-$(bash "$script_dir/detect-base-branch.sh" "$root")}"
 slug="$(printf '%s' "$branch" | tr '/' '-' | tr -cs 'A-Za-z0-9._-' '-')"
 worktree="$root/.claude/worktrees/ha/$slug"
 

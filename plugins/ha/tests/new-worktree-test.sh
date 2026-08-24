@@ -21,6 +21,16 @@ test "$BRANCH" = feat/port-test
 test -d "$WORKTREE_PATH"
 test "$(git -C "$WORKTREE_PATH" branch --show-current)" = feat/port-test
 case "$WORKTREE_PATH" in */.claude/worktrees/ha/*) ;; *) exit 1;; esac
+created="$WORKTREE_PATH"
+out="$(cd "$created" && bash "$script" feat/port-test main)"
+eval "$out"
+test "$REUSED" = 1
+test "$BRANCH" = feat/port-test
+! (cd "$created" && bash "$script" feat/other main) >/dev/null 2>&1
+
+git -C "$tmp/repo" switch -q -c driver
+git -C "$tmp/repo" worktree add -q "$tmp/base-main" main
+! (cd "$tmp/base-main" && bash "$script" main main) >/dev/null 2>&1
 ! (cd "$tmp/repo" && bash "$script" feat/port-test) >/dev/null 2>&1
 ! (cd "$tmp/repo" && bash "$script" --bad) >/dev/null 2>&1
 
