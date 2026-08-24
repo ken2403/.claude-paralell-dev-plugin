@@ -46,6 +46,7 @@ case "$common" in /*) ;; *) common="$root/$common";; esac
 record="$common/ha/reviews/pr-$pr.json"
 [ -f "$record" ] || { echo "merge-pr: no HA review record for PR #$pr; run \$ha-review-pr" >&2; exit 1; }
 python3 "$script_dir/validate-review.py" "$record" --expected-pr "$pr" >/dev/null
+approved_head="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["head_sha"])' "$record")"
 python3 - "$record" <<'PY'
 import json, sys
 with open(sys.argv[1], encoding="utf-8") as handle:
@@ -62,7 +63,7 @@ case "$method" in
   merge) flag=--merge ;;
   rebase) flag=--rebase ;;
 esac
-"$gh_bin" pr merge "$pr" "$flag" --delete-branch
+"$gh_bin" pr merge "$pr" "$flag" --delete-branch --match-head-commit "$approved_head"
 merged="$($gh_bin pr view "$pr" --json mergedAt --jq .mergedAt)"
 [ -n "$merged" ] && [ "$merged" != null ] || { echo "merge-pr: merge was not confirmed" >&2; exit 1; }
 echo "merge-pr: PR #$pr merged at $merged"

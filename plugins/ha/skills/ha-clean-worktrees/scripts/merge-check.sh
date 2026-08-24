@@ -36,18 +36,22 @@ is_branch_merged() {
   local repo_root="${3:-.}"
 
   # --- Method 1: Check via GitHub PR (most reliable) ---
-  # This correctly handles squash merges, rebase merges, etc.
-  if command -v gh &>/dev/null; then
-    local pr_state=""
-    pr_state=$(cd "$repo_root" && gh pr list --head "$branch" --state merged --json number,state --jq '.[0].state' 2>/dev/null || echo "")
-    if [ "$pr_state" = "MERGED" ]; then
-      echo "  Merge verified by: GitHub PR (state=MERGED)" >&2
+  # Bind positive proof to the requested base AND the branch's current tip. A
+  # historical merged PR with a reused branch name is not proof for new work.
+  local branch_sha=""
+  branch_sha=$(git -C "$repo_root" rev-parse "refs/heads/$branch" 2>/dev/null || echo "")
+  if command -v gh &>/dev/null && [ -n "$branch_sha" ]; then
+    local merged_pr=""
+    merged_pr=$(cd "$repo_root" && gh pr list --head "$branch" --base "$base" --state merged \
+      --json number,state,headRefOid --jq '.[0] | [.state, .headRefOid] | @tsv' 2>/dev/null || echo "")
+    if [ "$merged_pr" = "MERGED"$'\t'"$branch_sha" ]; then
+      echo "  Merge verified by: GitHub PR (state=MERGED, base=$base, head=$branch_sha)" >&2
       return 0
     fi
 
     # Check if PR is still open (definitively NOT merged)
     local pr_open=""
-    pr_open=$(cd "$repo_root" && gh pr list --head "$branch" --state open --json number --jq '.[0].number' 2>/dev/null || echo "")
+    pr_open=$(cd "$repo_root" && gh pr list --head "$branch" --base "$base" --state open --json number --jq '.[0].number' 2>/dev/null || echo "")
     if [ -n "$pr_open" ]; then
       echo "  PR #$pr_open is still OPEN — NOT merged" >&2
       return 1

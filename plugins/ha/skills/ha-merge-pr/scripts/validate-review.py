@@ -110,8 +110,10 @@ def validate(data: object, expected_pr: int | None) -> dict:
         passes += int(item["result"] == "pass")
         nonempty(item["evidence"], f"{label}.evidence")
 
-    if data["verdict"] == "APPROVE" and (blockers or not passes):
-        fail("APPROVE requires zero blocking findings and at least one passing verification")
+    if data["verdict"] == "APPROVE" and (
+        blockers or not passes or any(item["result"] != "pass" for item in verification)
+    ):
+        fail("APPROVE requires zero blocking findings and every verification to pass")
     if data["verdict"] == "REQUEST_CHANGES" and not blockers:
         fail("REQUEST_CHANGES requires at least one blocking finding")
     return data

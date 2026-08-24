@@ -50,6 +50,7 @@ claude --plugin-dir /path/to/claude-parallel-dev-plugin/ha
 ├── ha/                               # the ha plugin (its own .claude-plugin/plugin.json, skills, agents, hooks)
 ├── ca/                               # the ca plugin (Claude + Codex sides)
 ├── plugins/ca/                       # generated Codex marketplace package for ca
+├── plugins/ha/                       # standalone Codex marketplace package for ha
 ├── CLAUDE.md                         # maintainer guidance for this repo
 └── README.md                         # this file
 ```

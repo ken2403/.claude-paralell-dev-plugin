@@ -41,6 +41,10 @@ write_review APPROVE 1 1
 ! (cd "$tmp/repo" && python3 "$validator" "$tmp/review.json" --expected-pr 12) >/dev/null 2>&1
 write_review APPROVE 0 0
 ! (cd "$tmp/repo" && python3 "$validator" "$tmp/review.json" --expected-pr 12) >/dev/null 2>&1
+cat >"$tmp/review.json" <<EOF
+{"schema_version":"ha_codex_review.v1","pr":12,"head_sha":"$sha","verdict":"APPROVE","summary":"mixed","findings":[],"verification":[{"claim":"unit","result":"pass","evidence":"passed"},{"claim":"integration","result":"fail","evidence":"failed"}]}
+EOF
+! (cd "$tmp/repo" && python3 "$validator" "$tmp/review.json" --expected-pr 12) >/dev/null 2>&1
 write_review REQUEST_CHANGES 0 1
 ! (cd "$tmp/repo" && python3 "$validator" "$tmp/review.json" --expected-pr 12) >/dev/null 2>&1
 write_review BLOCKED 0 0

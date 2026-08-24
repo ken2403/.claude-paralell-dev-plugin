@@ -44,6 +44,7 @@ export GH_BIN="$tmp/bin/gh" GH_LOG="$tmp/gh.log"
 (cd "$tmp/repo" && bash "$script" --preflight 12) >/dev/null
 (cd "$tmp/repo" && bash "$script" --merge 12 --method squash) >/dev/null
 grep -q -- '--squash' "$tmp/gh.log"
+grep -q -- "--match-head-commit $sha" "$tmp/gh.log"
 ! (export GH_MODE=draft; cd "$tmp/repo"; bash "$script" --preflight 12) >/dev/null 2>&1
 ! (export GH_MODE=changes; cd "$tmp/repo"; bash "$script" --preflight 12) >/dev/null 2>&1
 ! (export GH_HEAD=ffffffffffffffffffffffffffffffffffffffff; cd "$tmp/repo"; bash "$script" --preflight 12) >/dev/null 2>&1

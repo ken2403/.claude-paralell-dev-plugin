@@ -38,7 +38,7 @@ fi
 echo "== manifests =="
 python3 -m json.tool .claude-plugin/marketplace.json >/dev/null
 python3 -m json.tool .agents/plugins/marketplace.json >/dev/null
-for plugin in ha sa ca/claude ca/codex plugins/ca; do
+for plugin in ha sa ca/claude ca/codex plugins/ca plugins/ha; do
   manifest="$plugin/.claude-plugin/plugin.json"
   [ -f "$manifest" ] || manifest="$plugin/.codex-plugin/plugin.json"
   [ -f "$manifest" ] || fail "missing plugin manifest for $plugin"
@@ -63,7 +63,11 @@ CODEX_PLUGIN_VALIDATOR="${CODEX_PLUGIN_VALIDATOR:-$HOME/.codex/skills/.system/pl
 CODEX_SKILL_VALIDATOR="${CODEX_SKILL_VALIDATOR:-$HOME/.codex/skills/.system/skill-creator/scripts/quick_validate.py}"
 if python3 -c 'import yaml' >/dev/null 2>&1 && [ -f "$CODEX_PLUGIN_VALIDATOR" ] && [ -f "$CODEX_SKILL_VALIDATOR" ]; then
   python3 "$CODEX_PLUGIN_VALIDATOR" plugins/ca
+  python3 "$CODEX_PLUGIN_VALIDATOR" plugins/ha
   python3 "$CODEX_SKILL_VALIDATOR" ca/codex/skills/ca-implement-plan
+  while IFS= read -r skill; do
+    python3 "$CODEX_SKILL_VALIDATOR" "$skill"
+  done < <(find plugins/ha/skills -mindepth 1 -maxdepth 1 -type d | sort)
 else
   echo "::warning::PyYAML or Codex system validators unavailable; run the validators in an environment with PyYAML."
 fi
@@ -117,6 +121,9 @@ while IFS= read -r test_file; do
   bash "$test_file"
 done < <(find ca -path '*/tests/*-test.sh' -type f | sort)
 
+echo "== Codex ha script tests =="
+bash plugins/ha/tests/run.sh
+
 echo "== clean-worktrees behavior =="
 bash common/tests/clean-worktrees-test.sh
 
@@ -125,7 +132,7 @@ while IFS= read -r skill; do
   dir="$(basename "$(dirname "$skill")")"
   name="$(awk '/^---$/ { fm++; next } fm == 1 && /^name:/ { sub(/^name:[[:space:]]*/, ""); print; exit }' "$skill")"
   [ "$name" = "$dir" ] || fail "$skill has name '$name', expected '$dir'"
-done < <(find ha/skills sa/skills ca/claude/skills ca/codex/skills plugins/ca/skills -name SKILL.md | sort)
+done < <(find ha/skills sa/skills ca/claude/skills ca/codex/skills plugins/ca/skills plugins/ha/skills -name SKILL.md | sort)
 
 while IFS= read -r agent; do
   file="$(basename "$agent" .md)"
@@ -137,7 +144,7 @@ echo "== skill body length =="
 while IFS= read -r skill; do
   body_lines="$(awk 'BEGIN { fm=0; body=0 } /^---$/ { fm++; next } fm >= 2 { body++ } END { print body }' "$skill")"
   [ "$body_lines" -le 500 ] || fail "$skill body has $body_lines lines; keep it <= 500"
-done < <(find ha/skills sa/skills ca/claude/skills ca/codex/skills plugins/ca/skills -name SKILL.md | sort)
+done < <(find ha/skills sa/skills ca/claude/skills ca/codex/skills plugins/ca/skills plugins/ha/skills -name SKILL.md | sort)
 
 echo "== ca skill packaging rules =="
 [ ! -e ca/codex/skills/ca-implement-plan/README.md ] || fail "README.md is not allowed inside a skill"
