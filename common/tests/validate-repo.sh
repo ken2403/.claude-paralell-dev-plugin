@@ -126,6 +126,31 @@ done < <(find ca -path '*/tests/*-test.sh' -type f | sort)
 echo "== Codex ha script tests =="
 bash plugins/ha/tests/run.sh
 
+echo "== Codex ha duplicated-file identity =="
+compare_star() {
+  master="$1"
+  shift
+  for copy in "$@"; do
+    cmp -s "$master" "$copy" || fail "$copy must be byte-identical to $master"
+  done
+}
+compare_star plugins/ha/skills/ha-plan/scripts/detect-base-branch.sh \
+  plugins/ha/skills/ha-implement/scripts/detect-base-branch.sh \
+  plugins/ha/skills/ha-resolve-conflicts/scripts/detect-base-branch.sh \
+  plugins/ha/skills/ha-clean-worktrees/scripts/detect-base-branch.sh
+compare_star plugins/ha/skills/ha-apply-feedback/scripts/attach-or-create-worktree.sh \
+  plugins/ha/skills/ha-resolve-conflicts/scripts/attach-or-create-worktree.sh
+compare_star plugins/ha/skills/ha-implement/scripts/run-checks.sh \
+  plugins/ha/skills/ha-apply-feedback/scripts/run-checks.sh \
+  plugins/ha/skills/ha-resolve-conflicts/scripts/run-checks.sh
+compare_star plugins/ha/skills/ha-review-pr/scripts/validate-review.py \
+  plugins/ha/skills/ha-merge-pr/scripts/validate-review.py
+agent_control_master=plugins/ha/skills/ha-plan/references/agent-control.md
+while IFS= read -r copy; do
+  cmp -s "$agent_control_master" "$copy" \
+    || fail "$copy must be byte-identical to $agent_control_master"
+done < <(find plugins/ha/skills -path '*/references/agent-control.md' -type f | sort)
+
 echo "== clean-worktrees behavior =="
 bash common/tests/clean-worktrees-test.sh
 

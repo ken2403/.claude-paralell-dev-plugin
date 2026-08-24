@@ -10,7 +10,7 @@ Resolve intent, not markers. Resolve this skill directory from the loaded `SKILL
 
 ## 1. Resolve target and isolation
 
-Resolve the input as a PR number or branch. For a PR, preserve its actual `baseRefName` and bind the checkout to `headRefOid`; never replace a PR base with the repository default:
+Resolve the input as a PR number or branch. All-digit input always means a PR; use `branch:<name>` for an all-digit branch (for example `branch:42`). For a PR, preserve its actual `baseRefName` and bind the checkout to `headRefOid`; never replace a PR base with the repository default:
 
 ```bash
 eval "$(bash <skill-dir>/scripts/resolve-target.sh "$TARGET" "$REPO_ROOT")"

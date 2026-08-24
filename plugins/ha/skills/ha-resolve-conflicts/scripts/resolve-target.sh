@@ -1,14 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-target="${1:?usage: resolve-target.sh <pr-or-branch> [repo]}"
+target="${1:?usage: resolve-target.sh <pr-or-branch-or-branch:name> [repo]}"
 repo="${2:-$(git rev-parse --show-toplevel)}"
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 gh_bin="${GH_BIN:-gh}"
 
-if git -C "$repo" show-ref --verify --quiet "refs/heads/$target" \
-  || git -C "$repo" show-ref --verify --quiet "refs/remotes/origin/$target"; then
-    branch="$target"
+if [[ "$target" = branch:* ]]; then
+    branch="${target#branch:}"
     base="$(bash "$script_dir/detect-base-branch.sh" "$repo")"
     expected=""
 elif printf '%s' "$target" | grep -Eq '^[0-9]+$'; then
