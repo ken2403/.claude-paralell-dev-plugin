@@ -1,0 +1,7 @@
+interface:
+  display_name: "HA: Plan"
+  short_description: "Design and red-team one feature"
+  default_prompt: "Use $ha-plan to create and approve a rigorous implementation plan for one feature."
+
+policy:
+  allow_implicit_invocation: false

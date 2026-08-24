@@ -1,0 +1,7 @@
+interface:
+  display_name: "HA: Resolve Conflicts"
+  short_description: "Resolve and verify branch conflicts"
+  default_prompt: "Use $ha-resolve-conflicts to resolve a PR against its base in an isolated worktree."
+
+policy:
+  allow_implicit_invocation: false

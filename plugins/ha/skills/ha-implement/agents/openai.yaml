@@ -1,0 +1,7 @@
+interface:
+  display_name: "HA: Implement"
+  short_description: "Build an approved plan through PR"
+  default_prompt: "Use $ha-implement to build an approved HA plan in an isolated worktree and open a PR."
+
+policy:
+  allow_implicit_invocation: false

@@ -1,0 +1,7 @@
+interface:
+  display_name: "HA: Adversarial Verification"
+  short_description: "Try to refute critical change claims"
+  default_prompt: "Use $ha-adversarial-verification to challenge correctness, safety, completeness, and regression claims."
+
+policy:
+  allow_implicit_invocation: true

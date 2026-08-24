@@ -1,0 +1,7 @@
+interface:
+  display_name: "HA: Apply Feedback"
+  short_description: "Verify and apply PR feedback"
+  default_prompt: "Use $ha-apply-feedback to evaluate review findings and fix a PR in an isolated worktree."
+
+policy:
+  allow_implicit_invocation: false
