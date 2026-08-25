@@ -1,4 +1,4 @@
-# claude-parallel-dev-plugin
+# agent-parallel-dev-plugin
 
 A Claude Code **plugin marketplace** (`.claude-plugin/marketplace.json`) shipping
 plugins for parallel development, plus a Codex repo marketplace
@@ -8,6 +8,7 @@ directories; Codex marketplace packages live under `plugins/`.
 - **`sa`** — "Simple Agents": command-free skills + subagents for fast single-feature work (digest plan → approve → worktree → implement → PR; review cycle is on-demand), in `sa/`. See `sa/README.md`.
 - **`ha`** — "Higher Agents": the thorough counterpart to `sa` for building ONE feature properly (deep red-teamed plan → SDD per-task loop + risk-scaled pre-PR adversarial gate → independent review → apply feedback → gated merge, plus standalone conflict resolution and worktree cleanup), in `ha/`. Single-feature, foreground, model-agnostic; leverages the `superpowers` disciplines (required dependency). See `ha/README.md`.
 - **`ca`** — "Cooperate Agents": a Claude×Codex loop shipped as two co-located plugins (`ca/claude/`, `ca/codex/`). See `ca/README.md`.
+- **`plugins/ha`** — the standalone Codex port of Higher Agents: the same lifecycle and safety gates, implemented with Codex skills and controlled subagents, with no Claude or `superpowers` runtime dependency. See `plugins/ha/README.md`.
 
 Keep the plugins independent; don't let edits to one leak into another. To add
 a plugin, create a new top-level dir with its own plugin manifest and add an

@@ -35,17 +35,18 @@ else
   fi
 fi
 
+python3 -c 'import json; d=json.load(open(".agents/plugins/marketplace.json")); got={p["name"]:p["source"]["path"] for p in d["plugins"]}; expected={"ca":"./plugins/ca","ha":"./plugins/ha"}; assert all(got.get(k)==v for k,v in expected.items()), (got,expected)' \
+  || fail "Codex marketplace must map ca and ha to their package directories"
+
 echo "== manifests =="
 python3 -m json.tool .claude-plugin/marketplace.json >/dev/null
 python3 -m json.tool .agents/plugins/marketplace.json >/dev/null
-for plugin in ha sa ca/claude ca/codex plugins/ca; do
+for plugin in ha sa ca/claude ca/codex plugins/ca plugins/ha; do
   manifest="$plugin/.claude-plugin/plugin.json"
   [ -f "$manifest" ] || manifest="$plugin/.codex-plugin/plugin.json"
   [ -f "$manifest" ] || fail "missing plugin manifest for $plugin"
   python3 -m json.tool "$manifest" >/dev/null
 done
-[ "$(python3 -c 'import json; print(json.load(open(".agents/plugins/marketplace.json"))["plugins"][0]["source"]["path"])')" = "./plugins/ca" ] \
-  || fail "Codex marketplace must point to ./plugins/ca"
 [ ! -e common/.claude-plugin ] || fail "common/ must not be a Claude plugin"
 [ ! -e common/.codex-plugin ] || fail "common/ must not be a Codex plugin"
 [ ! -e common/plugin.json ] || fail "common/ must not be a plugin"
@@ -59,13 +60,18 @@ while IFS= read -r py_file; do
 done < <(find ha sa ca common plugins -type f -name '*.py' | sort)
 
 echo "== Codex plugin and skill validation =="
+python3 common/tests/validate-codex.py plugins/ca plugins/ha
 CODEX_PLUGIN_VALIDATOR="${CODEX_PLUGIN_VALIDATOR:-$HOME/.codex/skills/.system/plugin-creator/scripts/validate_plugin.py}"
 CODEX_SKILL_VALIDATOR="${CODEX_SKILL_VALIDATOR:-$HOME/.codex/skills/.system/skill-creator/scripts/quick_validate.py}"
 if python3 -c 'import yaml' >/dev/null 2>&1 && [ -f "$CODEX_PLUGIN_VALIDATOR" ] && [ -f "$CODEX_SKILL_VALIDATOR" ]; then
   python3 "$CODEX_PLUGIN_VALIDATOR" plugins/ca
+  python3 "$CODEX_PLUGIN_VALIDATOR" plugins/ha
   python3 "$CODEX_SKILL_VALIDATOR" ca/codex/skills/ca-implement-plan
+  while IFS= read -r skill; do
+    python3 "$CODEX_SKILL_VALIDATOR" "$skill"
+  done < <(find plugins/ha/skills -mindepth 1 -maxdepth 1 -type d | sort)
 else
-  echo "::warning::PyYAML or Codex system validators unavailable; run the validators in an environment with PyYAML."
+  echo "::warning::Optional Codex system validators unavailable; checked-in Codex validation still ran."
 fi
 
 echo "== ca contract copies =="
@@ -117,6 +123,34 @@ while IFS= read -r test_file; do
   bash "$test_file"
 done < <(find ca -path '*/tests/*-test.sh' -type f | sort)
 
+echo "== Codex ha script tests =="
+bash plugins/ha/tests/run.sh
+
+echo "== Codex ha duplicated-file identity =="
+compare_star() {
+  master="$1"
+  shift
+  for copy in "$@"; do
+    cmp -s "$master" "$copy" || fail "$copy must be byte-identical to $master"
+  done
+}
+compare_star plugins/ha/skills/ha-plan/scripts/detect-base-branch.sh \
+  plugins/ha/skills/ha-implement/scripts/detect-base-branch.sh \
+  plugins/ha/skills/ha-resolve-conflicts/scripts/detect-base-branch.sh \
+  plugins/ha/skills/ha-clean-worktrees/scripts/detect-base-branch.sh
+compare_star plugins/ha/skills/ha-apply-feedback/scripts/attach-or-create-worktree.sh \
+  plugins/ha/skills/ha-resolve-conflicts/scripts/attach-or-create-worktree.sh
+compare_star plugins/ha/skills/ha-implement/scripts/run-checks.sh \
+  plugins/ha/skills/ha-apply-feedback/scripts/run-checks.sh \
+  plugins/ha/skills/ha-resolve-conflicts/scripts/run-checks.sh
+compare_star plugins/ha/skills/ha-review-pr/scripts/validate-review.py \
+  plugins/ha/skills/ha-merge-pr/scripts/validate-review.py
+agent_control_master=plugins/ha/skills/ha-plan/references/agent-control.md
+while IFS= read -r copy; do
+  cmp -s "$agent_control_master" "$copy" \
+    || fail "$copy must be byte-identical to $agent_control_master"
+done < <(find plugins/ha/skills -path '*/references/agent-control.md' -type f | sort)
+
 echo "== clean-worktrees behavior =="
 bash common/tests/clean-worktrees-test.sh
 
@@ -125,7 +159,7 @@ while IFS= read -r skill; do
   dir="$(basename "$(dirname "$skill")")"
   name="$(awk '/^---$/ { fm++; next } fm == 1 && /^name:/ { sub(/^name:[[:space:]]*/, ""); print; exit }' "$skill")"
   [ "$name" = "$dir" ] || fail "$skill has name '$name', expected '$dir'"
-done < <(find ha/skills sa/skills ca/claude/skills ca/codex/skills plugins/ca/skills -name SKILL.md | sort)
+done < <(find ha/skills sa/skills ca/claude/skills ca/codex/skills plugins/ca/skills plugins/ha/skills -name SKILL.md | sort)
 
 while IFS= read -r agent; do
   file="$(basename "$agent" .md)"
@@ -137,7 +171,7 @@ echo "== skill body length =="
 while IFS= read -r skill; do
   body_lines="$(awk 'BEGIN { fm=0; body=0 } /^---$/ { fm++; next } fm >= 2 { body++ } END { print body }' "$skill")"
   [ "$body_lines" -le 500 ] || fail "$skill body has $body_lines lines; keep it <= 500"
-done < <(find ha/skills sa/skills ca/claude/skills ca/codex/skills plugins/ca/skills -name SKILL.md | sort)
+done < <(find ha/skills sa/skills ca/claude/skills ca/codex/skills plugins/ca/skills plugins/ha/skills -name SKILL.md | sort)
 
 echo "== ca skill packaging rules =="
 [ ! -e ca/codex/skills/ca-implement-plan/README.md ] || fail "README.md is not allowed inside a skill"

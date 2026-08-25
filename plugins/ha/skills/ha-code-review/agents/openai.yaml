@@ -1,0 +1,7 @@
+interface:
+  display_name: "HA: Code Review"
+  short_description: "Apply HA engineering review standards"
+  default_prompt: "Use $ha-code-review to assess code quality, behavioral tests, security, and consistency."
+
+policy:
+  allow_implicit_invocation: true

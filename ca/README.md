@@ -37,6 +37,11 @@ need network + an authenticated `gh`.
 > fails loudly with guidance if no verdict is produced, so an unreachable reviewer is never mistaken
 > for a real verdict.
 
+Every checkpoint, final, and standalone review uses `gh pr diff`, so it reads the PR's configured
+base rather than assuming the repository default branch. The current structured review contract
+binds the verdict to the PR and head SHA, but not yet to the base commit SHA; rerun the final review
+if the base advances before promotion or merge.
+
 ## Layout
 
 ```
@@ -71,7 +76,7 @@ claude --plugin-dir /path/to/repo/ca/claude
 
 ```bash
 # Plugin-aware Codex install (repo marketplace):
-codex plugin marketplace add /path/to/claude-parallel-dev-plugin
+codex plugin marketplace add /path/to/agent-parallel-dev-plugin
 codex plugin add ca@claude-parallel-dev-plugin
 
 # Compatibility fallback — direct skill copy:

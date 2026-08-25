@@ -1,0 +1,7 @@
+interface:
+  display_name: "HA: Review PR"
+  short_description: "Run an independent adversarial PR review"
+  default_prompt: "Use $ha-review-pr to independently review a PR against its plan and engineering standards."
+
+policy:
+  allow_implicit_invocation: false

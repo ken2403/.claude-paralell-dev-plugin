@@ -1,0 +1,39 @@
+{
+  "name": "ha",
+  "version": "0.1.0+codex.20260825011548",
+  "description": "Higher Agents for Codex: rigorously plan, implement, review, and merge one feature with controlled subagents and fail-closed gates.",
+  "author": {
+    "name": "ken2403",
+    "url": "https://github.com/ken2403"
+  },
+  "homepage": "https://github.com/ken2403/agent-parallel-dev-plugin/tree/main/plugins/ha",
+  "repository": "https://github.com/ken2403/agent-parallel-dev-plugin",
+  "license": "MIT",
+  "keywords": [
+    "codex",
+    "development",
+    "planning",
+    "code-review",
+    "worktrees"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Higher Agents for Codex",
+    "shortDescription": "Build one feature with rigorous Codex-only gates.",
+    "longDescription": "Plan and red-team one feature, implement it task by task with controlled fresh subagents, independently review the PR, apply feedback, resolve conflicts, merge through deterministic preflight checks, and safely reclaim worktrees \u2014 entirely in Codex.",
+    "developerName": "ken2403",
+    "category": "Productivity",
+    "capabilities": [
+      "Read",
+      "Write",
+      "Git",
+      "GitHub",
+      "Subagents"
+    ],
+    "defaultPrompt": [
+      "Use $ha-plan to design and red-team one feature before implementation.",
+      "Use $ha-implement to build an approved HA plan in an isolated worktree.",
+      "Use $ha-review-pr to run an independent adversarial review of a PR."
+    ]
+  }
+}

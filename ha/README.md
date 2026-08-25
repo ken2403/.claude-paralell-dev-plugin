@@ -7,6 +7,10 @@ review, apply feedback rigorously, and merge behind a gate. The **thorough** cou
 [`sa`](../sa/README.md) — same single-feature, foreground, in-the-loop shape, heavier at
 every phase.
 
+This document covers the **Claude Code** plugin. For the standalone Codex port, see
+[`plugins/ha/README.md`](../plugins/ha/README.md); the Codex version does not require Claude or
+`superpowers`.
+
 ## Install
 
 ```
@@ -16,7 +20,7 @@ every phase.
 Or try it locally without installing:
 
 ```
-claude --plugin-dir /path/to/claude-parallel-dev-plugin/ha
+claude --plugin-dir /path/to/agent-parallel-dev-plugin/ha
 ```
 
 **Requirements:** `git`, the GitHub CLI (`gh`, authenticated), and — importantly — the
@@ -57,6 +61,9 @@ on demand:
 
 `implement` runs its own review loops but still **stops at PR**; `/ha:review-pr` is the
 separate, independent second opinion.
+
+`/ha:review-pr` reads the PR's configured base through `gh pr diff`; it does not substitute the
+repository default branch. Rerun it if that base branch advances before merge.
 
 ## Components
 

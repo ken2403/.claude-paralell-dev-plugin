@@ -1,0 +1,7 @@
+interface:
+  display_name: "HA: Clean Worktrees"
+  short_description: "Remove only positively merged worktrees"
+  default_prompt: "Use $ha-clean-worktrees to reclaim merged worktrees without deleting unmerged work."
+
+policy:
+  allow_implicit_invocation: false

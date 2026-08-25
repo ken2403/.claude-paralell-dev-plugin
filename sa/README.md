@@ -17,7 +17,7 @@ where a check signals doubt. The fast, lightweight counterpart to
 Or try it locally without installing:
 
 ```
-claude --plugin-dir /path/to/claude-parallel-dev-plugin/sa
+claude --plugin-dir /path/to/agent-parallel-dev-plugin/sa
 ```
 
 Requirements: `git`, the GitHub CLI (`gh`, authenticated), and access to the latest
@@ -59,6 +59,9 @@ the claims they cannot settle.
 
 `simple-implement` deliberately **stops at PR creation** for speed; reviewing is a separate,
 explicit step.
+
+`/sa:review-pr` reads the PR's configured base through `gh pr diff`; it does not substitute the
+repository default branch. Rerun it if that base branch advances before merge.
 
 ## Components
 

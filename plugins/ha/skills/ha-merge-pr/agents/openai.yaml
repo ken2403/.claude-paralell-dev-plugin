@@ -1,0 +1,7 @@
+interface:
+  display_name: "HA: Merge PR"
+  short_description: "Merge only a proven-ready PR"
+  default_prompt: "Use $ha-merge-pr to preflight and merge a reviewed PR without bypassing safety gates."
+
+policy:
+  allow_implicit_invocation: false
