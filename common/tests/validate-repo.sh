@@ -12,6 +12,32 @@ fail() {
   exit 1
 }
 
+echo "== marketplace identity =="
+expected_marketplace="agent-parallel-dev-plugin"
+python3 - "$expected_marketplace" <<'PY'
+import json
+import sys
+
+expected = sys.argv[1]
+for manifest in (
+    ".claude-plugin/marketplace.json",
+    ".agents/plugins/marketplace.json",
+):
+    with open(manifest, encoding="utf-8") as handle:
+        actual = json.load(handle)["name"]
+    if actual != expected:
+        raise SystemExit(f"{manifest}: marketplace name is {actual!r}, expected {expected!r}")
+PY
+
+unexpected_marketplaces="$(
+  git grep -h -I -o -E '[[:alnum:]_-]+-para(llel|lell)-dev-plugin' -- . ':!CLAUDE.md' \
+    | sort -u \
+    | grep -vxF "$expected_marketplace" \
+    || true
+)"
+[ -z "$unexpected_marketplaces" ] \
+  || fail "unexpected marketplace name remains in tracked source: $unexpected_marketplaces"
+
 echo "== generated files =="
 bash common/sync.sh --check
 bash ca/sync-codex-plugin.sh --check

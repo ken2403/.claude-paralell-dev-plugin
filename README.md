@@ -13,6 +13,9 @@ In Claude Code:
 
 ```
 /plugin marketplace add ken2403/agent-parallel-dev-plugin
+/plugin install sa@agent-parallel-dev-plugin
+/plugin install ha@agent-parallel-dev-plugin
+/plugin install ca@agent-parallel-dev-plugin
 ```
 
 In Codex, add the latest `main` snapshot, then install `ha` or `ca` from it.
@@ -20,10 +23,8 @@ In Codex, add the latest `main` snapshot, then install `ha` or `ca` from it.
 ```bash
 codex plugin marketplace add ken2403/agent-parallel-dev-plugin --ref main
 codex plugin add ha@agent-parallel-dev-plugin
+codex plugin add ca@agent-parallel-dev-plugin
 ```
-
-If you previously installed the marketplace under the old `claude-parallel-dev-plugin` name,
-remove that configured marketplace once and add it again. See [Rename migration](#rename-migration).
 
 ## Plugins
 
@@ -38,32 +39,6 @@ gate (Sonnet build, Opus review); reach for **`ha`** when you want that same sin
 built thoroughly — a deeper plan gate, layered review loops, and adversarial verification,
 model-agnostic (inherits your session model). All three are foreground and need no tmux.
 The Claude `ha` plugin additionally requires `superpowers`; the Codex `ha` plugin is standalone.
-
-## Rename migration
-
-Existing installations using the former marketplace name must be re-registered once.
-
-Claude Code:
-
-```text
-/plugin marketplace remove claude-parallel-dev-plugin
-/plugin marketplace add ken2403/agent-parallel-dev-plugin
-/plugin install sa@agent-parallel-dev-plugin
-/plugin install ha@agent-parallel-dev-plugin
-/plugin install ca@agent-parallel-dev-plugin
-```
-
-Codex:
-
-```bash
-codex plugin marketplace remove claude-parallel-dev-plugin
-codex plugin marketplace add ken2403/agent-parallel-dev-plugin --ref main
-codex plugin add ha@agent-parallel-dev-plugin
-codex plugin add ca@agent-parallel-dev-plugin
-```
-
-Reinstall only the plugins you use, then start a new Claude Code or Codex session so it loads the
-renamed marketplace.
 
 ## Review base behavior
 
