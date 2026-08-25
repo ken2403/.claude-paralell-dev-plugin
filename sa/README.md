@@ -11,7 +11,7 @@ where a check signals doubt. The fast, lightweight counterpart to
 ## Install
 
 ```
-/plugin install sa@claude-parallel-dev-plugin
+/plugin install sa@agent-parallel-dev-plugin
 ```
 
 Or try it locally without installing:

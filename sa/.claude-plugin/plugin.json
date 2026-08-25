@@ -3,7 +3,7 @@
   "name": "sa",
   "displayName": "Simple Agents",
   "description": "Command-free, skills + subagents plugin for fast single-feature development: digest a plan, get approval, isolate in a worktree, implement, and open a PR — Sonnet build / Opus review, with graded effort.",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "author": {
     "name": "ken2403"
   },

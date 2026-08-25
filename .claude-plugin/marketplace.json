@@ -1,11 +1,11 @@
 {
-  "name": "claude-parallel-dev-plugin",
+  "name": "agent-parallel-dev-plugin",
   "owner": {
     "name": "ken2403"
   },
   "metadata": {
     "description": "Claude Code and Codex workflows for fast, thorough, and cross-model feature development",
-    "version": "1.0.0"
+    "version": "2.0.0"
   },
   "plugins": [
     {

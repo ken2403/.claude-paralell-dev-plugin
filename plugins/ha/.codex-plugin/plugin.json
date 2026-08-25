@@ -1,6 +1,6 @@
 {
   "name": "ha",
-  "version": "0.1.0+codex.20260825011548",
+  "version": "0.1.0+codex.20260825013426",
   "description": "Higher Agents for Codex: rigorously plan, implement, review, and merge one feature with controlled subagents and fail-closed gates.",
   "author": {
     "name": "ken2403",

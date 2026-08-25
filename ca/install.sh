@@ -56,7 +56,7 @@ fi
 
 if [ "$do_claude" = 1 ]; then
   echo "[ca] Claude Code plugin (REQUIRED for the review step — provides /ca:review-pr):"
-  echo "    /plugin install ca@claude-parallel-dev-plugin"
+  echo "    /plugin install ca@agent-parallel-dev-plugin"
   echo "    # or, for local dev:  claude --plugin-dir \"$HERE/claude\""
   # Warn if the Claude plugin does not appear installed, since claude-review.sh calls plain
   # `claude -p /ca:review-pr` and will fail (no review) without it.

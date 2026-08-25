@@ -3,7 +3,7 @@
   "name": "ha",
   "displayName": "Higher Agents",
   "description": "Claude Code Higher Agents for building ONE feature thoroughly: deep red-teamed plan to human approval, per-task implementation review, a risk-scaled pre-PR gate, independent PR review, rigorous feedback handling, gated merge, conflict resolution, and safe worktree cleanup. Requires the superpowers plugin; model-agnostic.",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "author": {
     "name": "ken2403"
   },

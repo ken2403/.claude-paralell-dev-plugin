@@ -110,7 +110,7 @@ if [ ! -s "$OUT" ]; then
   {
     echo "claude-review: no review JSON was produced at $OUT. One of these is the cause:"
     echo "  (a) the /ca:review-pr skill did not resolve — install the ca Claude plugin"
-    echo "      ('/plugin install ca@claude-parallel-dev-plugin') or set CA_CLAUDE_PLUGIN_DIR"
+    echo "      ('/plugin install ca@agent-parallel-dev-plugin') or set CA_CLAUDE_PLUGIN_DIR"
     echo "      to the ca/claude dir so this script can pass --plugin-dir; or"
     echo "  (b) the -p session could not run its tools — the stock 'default' permission mode"
     echo "      cannot prompt non-interactively; set CA_CLAUDE_PERMISSION_MODE, or configure"
