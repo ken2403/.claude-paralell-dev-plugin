@@ -1,5 +1,5 @@
 {
-  "name": "claude-parallel-dev-plugin",
+  "name": "agent-parallel-dev-plugin",
   "interface": {
     "displayName": "Agent Parallel Dev Plugins"
   },

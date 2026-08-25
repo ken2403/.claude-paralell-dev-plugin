@@ -67,7 +67,7 @@ or distributed independently.
 **Claude Code plugin** (plan + review side):
 
 ```bash
-/plugin install ca@claude-parallel-dev-plugin     # from the marketplace
+/plugin install ca@agent-parallel-dev-plugin      # from the marketplace
 # or, for local development:
 claude --plugin-dir /path/to/repo/ca/claude
 ```
@@ -75,9 +75,12 @@ claude --plugin-dir /path/to/repo/ca/claude
 **Codex plugin** (implement side):
 
 ```bash
-# Plugin-aware Codex install (repo marketplace):
+# Plugin-aware Codex install from the latest main branch:
+codex plugin marketplace add ken2403/agent-parallel-dev-plugin --ref main
+codex plugin add ca@agent-parallel-dev-plugin
+
+# For local repository development instead:
 codex plugin marketplace add /path/to/agent-parallel-dev-plugin
-codex plugin add ca@claude-parallel-dev-plugin
 
 # Compatibility fallback — direct skill copy:
 bash ca/install.sh

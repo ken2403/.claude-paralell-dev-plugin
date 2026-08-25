@@ -1,6 +1,6 @@
 {
   "name": "ca",
-  "version": "0.5.0+codex.20260825011439",
+  "version": "0.5.0+codex.20260825013426",
   "description": "Codex side of the ca loop: implement a milestone plan test-first in an isolated worktree, open a draft PR early, pass Claude checkpoints and the final dual-model review, then promote the validated PR to ready.",
   "author": {
     "name": "ken2403",

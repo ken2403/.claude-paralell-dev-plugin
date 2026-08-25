@@ -7,14 +7,13 @@ For the original Claude Code plugin, see [`ha/README.md`](../../ha/README.md).
 ## Install
 
 ```bash
-codex plugin marketplace add /path/to/agent-parallel-dev-plugin
-codex plugin add ha@claude-parallel-dev-plugin
+codex plugin marketplace add ken2403/agent-parallel-dev-plugin --ref main
+codex plugin add ha@agent-parallel-dev-plugin
 ```
 
 Restart Codex or start a new thread after installing/updating.
 
-The repository path uses `agent-parallel-dev-plugin`; the marketplace identifier intentionally
-remains `claude-parallel-dev-plugin` for compatibility with existing installs.
+The repository and marketplace identifier both use `agent-parallel-dev-plugin`.
 
 ## Requirements
 

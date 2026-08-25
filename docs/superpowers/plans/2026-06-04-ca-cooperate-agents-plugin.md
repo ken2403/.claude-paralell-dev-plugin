@@ -156,7 +156,7 @@ ca/
 **Files:** Modify `.claude-plugin/marketplace.json`.
 
 - [ ] **Step 1:** Append `{ "name": "ca", "source": "./ca/claude", "description": "Cooperate Agents — Claude×Codex loop (plan & review side)", "category": "workflow", "tags": ["codex","cross-tool","worktree","code-review"] }`.
-- [ ] **Step 2 (verify):** assert `ca` present; `claude plugin validate ./ca/claude`. Install: `/plugin install ca@claude-parallel-dev-plugin`.
+- [ ] **Step 2 (verify):** assert `ca` present; `claude plugin validate ./ca/claude`. Install: `/plugin install ca@agent-parallel-dev-plugin`.
 - [ ] **Step 3 (commit):** `git commit -m "feat(ca): register ca Claude plugin in marketplace"`
 
 ## Task 6: Codex install mechanism (plugin marketplace + skill install)
@@ -164,7 +164,7 @@ ca/
 **Files:** Create `.agents/plugins/marketplace.json`, `ca/install.sh`.
 
 - [ ] **Step 1 (failing test):** `bash ca/install.sh --dry-run` → "not found".
-- [ ] **Step 2:** Implement `install.sh`: `--codex` (default) copies `ca/codex/skills/ca-implement-plan` → `${CODEX_HOME:-$HOME/.codex}/skills/ca-implement-plan` (refuse-if-exists unless `--force`), prints "Restart Codex to pick up new skills."; `--claude` prints `/plugin install ca@claude-parallel-dev-plugin` and `claude --plugin-dir <abs>/ca/claude`; `--dry-run` prints planned actions.
+- [ ] **Step 2:** Implement `install.sh`: `--codex` (default) copies `ca/codex/skills/ca-implement-plan` → `${CODEX_HOME:-$HOME/.codex}/skills/ca-implement-plan` (refuse-if-exists unless `--force`), prints "Restart Codex to pick up new skills."; `--claude` prints `/plugin install ca@agent-parallel-dev-plugin` and `claude --plugin-dir <abs>/ca/claude`; `--dry-run` prints planned actions.
 - [ ] **Step 3:** Create `.agents/plugins/marketplace.json` per plugin-json-spec: one `ca` entry, `source.source: "local"`, `path` to the codex plugin root, `policy.installation: "AVAILABLE"`, `policy.authentication: "ON_INSTALL"`, `category: "Productivity"`.
 - [ ] **Step 4 (verify):** `bash ca/install.sh --dry-run`; `bash -n ca/install.sh`; JSON loads.
 - [ ] **Step 5 (commit):** `git commit -m "feat(ca): Codex install.sh + marketplace registration"`
@@ -173,7 +173,7 @@ ca/
 
 **Files:** Create `ca/README.md`.
 
-- [ ] **Step 1:** Flow diagram; two-plugin layout; **install both** (Codex: `bash ca/install.sh` + restart, or `.codex-plugin` route; Claude: `/plugin install ca@claude-parallel-dev-plugin` or `claude --plugin-dir …/ca/claude`); the contract; session/sandbox model; `CODEX_BIN`/`CLAUDE_BIN` overrides.
+- [ ] **Step 1:** Flow diagram; two-plugin layout; **install both** (Codex: `bash ca/install.sh` + restart, or `.codex-plugin` route; Claude: `/plugin install ca@agent-parallel-dev-plugin` or `claude --plugin-dir …/ca/claude`); the contract; session/sandbox model; `CODEX_BIN`/`CLAUDE_BIN` overrides.
 - [ ] **Step 2 (commit):** `git commit -m "docs(ca): human-facing README for both plugins"`
 
 ## Task 8: Replace the stale plan doc
@@ -203,7 +203,7 @@ ca/
 
 ## Verification (end-to-end)
 
-1. **Install:** `bash ca/install.sh --codex` (restart Codex) + `/plugin install ca@claude-parallel-dev-plugin` (or `claude --plugin-dir …/ca/claude`).
+1. **Install:** `bash ca/install.sh --codex` (restart Codex) + `/plugin install ca@agent-parallel-dev-plugin` (or `claude --plugin-dir …/ca/claude`).
 2. **Plan + spar:** Claude `/ca:plan-loop "<epic>"` → calls Codex (sparring text), saves a plan.
 3. **Kickoff:** `/ca:start <plan>` → prints worktree path + `$ca-implement-plan` command.
 4. **Loop:** in a Codex session in that worktree, `$ca-implement-plan PLAN=<abs>` → implements task-by-task, `claude-review.sh` → `/ca:review-diff` returns `ca_claude_review.v1` JSON; addresses blocking findings for **≤2 rounds**; opens a (ready/draft) PR with an exchange-summary comment.

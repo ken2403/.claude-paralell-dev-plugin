@@ -14,7 +14,7 @@ This document covers the **Claude Code** plugin. For the standalone Codex port, 
 ## Install
 
 ```
-/plugin install ha@claude-parallel-dev-plugin
+/plugin install ha@agent-parallel-dev-plugin
 ```
 
 Or try it locally without installing:

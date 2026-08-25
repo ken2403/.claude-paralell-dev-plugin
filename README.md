@@ -4,8 +4,8 @@ A **Claude Code and Codex plugin marketplace** — a single repository that host
 parallel-development plugins. Add the relevant marketplace once, then install whichever plugins
 you want.
 
-The repository is named `agent-parallel-dev-plugin`. The marketplace identifier remains
-`claude-parallel-dev-plugin` for install-command compatibility.
+The repository and both the Claude Code and Codex marketplace identifiers are named
+`agent-parallel-dev-plugin`.
 
 ## Add the marketplace
 
@@ -15,26 +15,55 @@ In Claude Code:
 /plugin marketplace add ken2403/agent-parallel-dev-plugin
 ```
 
-In Codex, add this repository as a marketplace, then install `ha` or `ca` from it.
+In Codex, add the latest `main` snapshot, then install `ha` or `ca` from it.
 
 ```bash
-codex plugin marketplace add /path/to/agent-parallel-dev-plugin
-codex plugin add ha@claude-parallel-dev-plugin
+codex plugin marketplace add ken2403/agent-parallel-dev-plugin --ref main
+codex plugin add ha@agent-parallel-dev-plugin
 ```
+
+If you previously installed the marketplace under the old `claude-parallel-dev-plugin` name,
+remove that configured marketplace once and add it again. See [Rename migration](#rename-migration).
 
 ## Plugins
 
 | Plugin | What it is | Install | Docs |
 |--------|------------|---------|------|
-| **`sa`** | **Simple Agents for Claude Code** — command-free skills + subagents for fast single-feature work: digest a plan, get your approval, isolate in a worktree, implement, and open a PR. | `/plugin install sa@claude-parallel-dev-plugin` | [Claude docs](sa/README.md) |
-| **`ha`** | **Higher Agents** — build ONE feature thoroughly with a red-teamed plan, per-task review, a risk-scaled pre-PR gate, independent PR review, feedback handling, gated merge, and safe cleanup. The Claude version leverages `superpowers`; the standalone Codex version has no Claude or `superpowers` runtime dependency. | Claude: `/plugin install ha@claude-parallel-dev-plugin`; Codex: `codex plugin add ha@claude-parallel-dev-plugin` | [Claude docs](ha/README.md) · [Codex docs](plugins/ha/README.md) |
-| **`ca`** | **Cooperate Agents** — a Claude×Codex loop shipped as two co-located plugins: draft a milestone-grouped plan sparring with Codex, hand off to Codex to implement milestone by milestone in an isolated worktree (draft PR at the first milestone, Claude checkpoint review between milestones), then the final **dual review** — blind Claude plus an offline Codex second opinion, adjudicated into one verdict (`/ca:dual-review` runs the same thing standalone; ≤2 final rounds) — before it's promoted to ready, then gated-merge and clean up worktrees — the same full lifecycle as `sa`/`ha`, adapted to the cross-tool loop. | `/plugin install ca@claude-parallel-dev-plugin` | [ca/README.md](ca/README.md) |
+| **`sa`** | **Simple Agents for Claude Code** — command-free skills + subagents for fast single-feature work: digest a plan, get your approval, isolate in a worktree, implement, and open a PR. | `/plugin install sa@agent-parallel-dev-plugin` | [Claude docs](sa/README.md) |
+| **`ha`** | **Higher Agents** — build ONE feature thoroughly with a red-teamed plan, per-task review, a risk-scaled pre-PR gate, independent PR review, feedback handling, gated merge, and safe cleanup. The Claude version leverages `superpowers`; the standalone Codex version has no Claude or `superpowers` runtime dependency. | Claude: `/plugin install ha@agent-parallel-dev-plugin`; Codex: `codex plugin add ha@agent-parallel-dev-plugin` | [Claude docs](ha/README.md) · [Codex docs](plugins/ha/README.md) |
+| **`ca`** | **Cooperate Agents** — a Claude×Codex loop shipped as two co-located plugins: draft a milestone-grouped plan sparring with Codex, hand off to Codex to implement milestone by milestone in an isolated worktree (draft PR at the first milestone, Claude checkpoint review between milestones), then the final **dual review** — blind Claude plus an offline Codex second opinion, adjudicated into one verdict (`/ca:dual-review` runs the same thing standalone; ≤2 final rounds) — before it's promoted to ready, then gated-merge and clean up worktrees — the same full lifecycle as `sa`/`ha`, adapted to the cross-tool loop. | `/plugin install ca@agent-parallel-dev-plugin` | [ca/README.md](ca/README.md) |
 
 New to this? Pick **`sa`** for a single feature you want done fast with a quick approval
 gate (Sonnet build, Opus review); reach for **`ha`** when you want that same single feature
 built thoroughly — a deeper plan gate, layered review loops, and adversarial verification,
 model-agnostic (inherits your session model). All three are foreground and need no tmux.
 The Claude `ha` plugin additionally requires `superpowers`; the Codex `ha` plugin is standalone.
+
+## Rename migration
+
+Existing installations using the former marketplace name must be re-registered once.
+
+Claude Code:
+
+```text
+/plugin marketplace remove claude-parallel-dev-plugin
+/plugin marketplace add ken2403/agent-parallel-dev-plugin
+/plugin install sa@agent-parallel-dev-plugin
+/plugin install ha@agent-parallel-dev-plugin
+/plugin install ca@agent-parallel-dev-plugin
+```
+
+Codex:
+
+```bash
+codex plugin marketplace remove claude-parallel-dev-plugin
+codex plugin marketplace add ken2403/agent-parallel-dev-plugin --ref main
+codex plugin add ha@agent-parallel-dev-plugin
+codex plugin add ca@agent-parallel-dev-plugin
+```
+
+Reinstall only the plugins you use, then start a new Claude Code or Codex session so it loads the
+renamed marketplace.
 
 ## Review base behavior
 
