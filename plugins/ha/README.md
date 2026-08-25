@@ -2,6 +2,8 @@
 
 `ha` is the Codex-only port of the repository's thorough Claude HA workflow. It builds **one feature** with front-loaded design rigor, controlled fresh subagents, persistent worktree isolation, evidence-gated review, and deterministic merge/cleanup safety. It has no Claude or `superpowers` runtime dependency.
 
+For the original Claude Code plugin, see [`ha/README.md`](../../ha/README.md).
+
 ## Install
 
 ```bash
@@ -10,6 +12,18 @@ codex plugin add ha@claude-parallel-dev-plugin
 ```
 
 Restart Codex or start a new thread after installing/updating.
+
+The repository path uses `agent-parallel-dev-plugin`; the marketplace identifier intentionally
+remains `claude-parallel-dev-plugin` for compatibility with existing installs.
+
+## Requirements
+
+- Codex CLI with Plugin and subagent support.
+- `git`, Bash, Python 3, and an authenticated GitHub CLI (`gh`).
+- Network access for fetching issues/PRs, pushing branches, opening PRs, reviewing live PR state,
+  and merging. Local planning and most checks can run without network.
+- A strong session model and high reasoning for planning, implementation, review, feedback, and
+  conflict resolution. Codex Skill frontmatter does not pin a model or reasoning effort.
 
 ## Workflow
 
@@ -45,9 +59,28 @@ Standalone operations: `$ha-review-pr`, `$ha-apply-feedback`, `$ha-resolve-confl
 - A timeout, malformed response, or missing evidence never becomes approval.
 - Side-effecting and orchestration skills require explicit `$ha-*` invocation. Only the code-review and adversarial-verification standards may activate implicitly.
 
+The workflow is a coordinated Plugin suite, not one uninterrupted command. Planning requires a
+human design/plan approval, implementation stops at a PR, merge requires explicit authorization,
+and cleanup is a separate post-merge operation.
+
 ## Review and merge invariant
 
 `$ha-review-pr` writes a strict `ha_codex_review.v1` record under the repository's Git common directory. The record includes the PR number and exact 40-character head SHA. `$ha-merge-pr` fails closed if the PR changed after approval, is draft/behind/conflicting, has changes requested, has non-green checks, or lacks an unblocked approval with passing evidence.
+
+The review reads the PR's configured base branch through `gh pr diff` and records `baseRefName`
+during the review snapshot. The current `ha_codex_review.v1` contract binds approval to the PR and
+**head SHA only**; it does not yet bind the base commit SHA. Until base-SHA binding is implemented,
+rerun `$ha-review-pr <PR>` whenever the base branch advances after a review, even if the feature
+head did not change. `mergeStateStatus` is an additional merge gate, not proof that the reviewed
+base commit is unchanged.
+
+## Security boundary
+
+The Claude HA package includes a secret-file write guard. This Codex package does not currently
+bundle an equivalent Plugin Hook, so do not treat the Plugin as an enforcement boundary for
+`.env`, credential, key, or certificate files. Repository policy, sandboxing, review, and explicit
+authorization still apply. A Codex-specific `PreToolUse` guard must parse Codex's `apply_patch`
+input before this parity claim can be made.
 
 ## Skills
 
@@ -63,4 +96,16 @@ Standalone operations: `$ha-review-pr`, `$ha-apply-feedback`, `$ha-resolve-confl
 | `$ha-code-review` | Canonical quality, test, security, and consistency standards. |
 | `$ha-adversarial-verification` | Evidence-gated claim refutation harness. |
 
-Model and reasoning effort are selected at Codex launch/profile time; Codex Skill frontmatter does not pin them. Use a strong model and high reasoning for plan, implementation, review, feedback, and conflict resolution.
+## Validation and test scope
+
+```bash
+uv run --with pyyaml bash common/tests/validate-repo.sh
+bash plugins/ha/tests/run.sh
+```
+
+The repository validates the Codex manifest, all nine Skill packages, shell/Python syntax,
+duplicated helper identity, review-contract coherence, worktree attach/create behavior,
+merge preflight, and fail-closed cleanup. The current HA tests are component/integration tests;
+they do **not** yet drive a fresh installed Codex session through the complete
+plan → implement → PR → review → feedback → merge → cleanup lifecycle. Do not describe HA as
+full-lifecycle E2E proven until that harness exists and passes.

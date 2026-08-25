@@ -1,4 +1,4 @@
-# claude-parallel-dev-plugin
+# agent-parallel-dev-plugin
 
 A Claude Code **plugin marketplace** (`.claude-plugin/marketplace.json`) shipping
 plugins for parallel development, plus a Codex repo marketplace

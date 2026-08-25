@@ -2,13 +2,13 @@
   "$schema": "https://json.schemastore.org/claude-code-plugin.json",
   "name": "ca",
   "displayName": "Cooperate Agents",
-  "description": "Claude side of the ca loop: draft an implementation plan (sparring with Codex), review a Codex-built PR against that plan (emitting a structured verdict the Codex loop consumes), and resolve conflicts / clean worktrees.",
+  "description": "Claude side of the ca loop: red-team a milestone plan with Codex, run checkpoint reviews on the draft PR, perform the blind final review and dual-review synthesis, then provide gated merge, conflict resolution, and safe worktree cleanup.",
   "version": "0.5.0",
   "author": {
     "name": "ken2403"
   },
-  "homepage": "https://github.com/ken2403/claude-parallel-dev-plugin",
-  "repository": "https://github.com/ken2403/claude-parallel-dev-plugin",
+  "homepage": "https://github.com/ken2403/agent-parallel-dev-plugin/tree/main/ca",
+  "repository": "https://github.com/ken2403/agent-parallel-dev-plugin",
   "keywords": [
     "codex",
     "claude",

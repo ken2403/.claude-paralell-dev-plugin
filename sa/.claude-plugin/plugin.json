@@ -7,8 +7,8 @@
   "author": {
     "name": "ken2403"
   },
-  "homepage": "https://github.com/ken2403/claude-parallel-dev-plugin",
-  "repository": "https://github.com/ken2403/claude-parallel-dev-plugin",
+  "homepage": "https://github.com/ken2403/agent-parallel-dev-plugin/tree/main/sa",
+  "repository": "https://github.com/ken2403/agent-parallel-dev-plugin",
   "keywords": [
     "worktree",
     "subagents",

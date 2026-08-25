@@ -1,13 +1,13 @@
 {
   "name": "ca",
-  "version": "0.5.0+codex.20260818045331",
-  "description": "Codex side of the ca loop: implement a saved plan in an isolated worktree with Claude review rounds, then open a PR.",
+  "version": "0.5.0+codex.20260825011439",
+  "description": "Codex side of the ca loop: implement a milestone plan test-first in an isolated worktree, open a draft PR early, pass Claude checkpoints and the final dual-model review, then promote the validated PR to ready.",
   "author": {
     "name": "ken2403",
     "url": "https://github.com/ken2403"
   },
-  "homepage": "https://github.com/ken2403/claude-parallel-dev-plugin/tree/main/ca",
-  "repository": "https://github.com/ken2403/claude-parallel-dev-plugin",
+  "homepage": "https://github.com/ken2403/agent-parallel-dev-plugin/tree/main/ca",
+  "repository": "https://github.com/ken2403/agent-parallel-dev-plugin",
   "license": "MIT",
   "keywords": [
     "codex",
@@ -20,8 +20,8 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "ca (Codex side)",
-    "shortDescription": "Build a plan with Claude review rounds",
-    "longDescription": "Implement a milestone-grouped plan test-first in an isolated worktree, use strict Claude checkpoint and final review contracts, and keep the pull request in draft until a validated approval.",
+    "shortDescription": "Build with checkpoint and dual review",
+    "longDescription": "Implement a milestone-grouped plan test-first in an isolated worktree, open a draft PR after the first milestone, pass Claude checkpoint gates, and use the blind-Claude plus offline-Codex final review before promotion to ready.",
     "developerName": "ken2403",
     "category": "Productivity",
     "capabilities": [
