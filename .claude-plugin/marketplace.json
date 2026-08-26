@@ -25,7 +25,7 @@
     {
       "name": "ca",
       "source": "./ca/claude",
-      "description": "Cooperate Agents — Claude×Codex loop: red-team a milestone plan, implement test-first on a draft PR with Claude checkpoints, run a blind-Claude plus offline-Codex final review, promote only on a validated verdict, then merge and clean up worktrees",
+      "description": "Cooperate Agents — Claude×Codex loop: red-team a milestone plan, implement test-first on a draft PR with Claude checkpoints, run a blind-Claude plus bounded offline single-agent Codex final review, promote only on a validated verdict, then merge and clean up worktrees",
       "category": "workflow",
       "tags": ["codex", "cross-tool", "worktree", "code-review"]
     }

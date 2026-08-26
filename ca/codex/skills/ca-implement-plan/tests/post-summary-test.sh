@@ -26,9 +26,9 @@ printf '{"verdict":"approve","summary":"final round summary","findings":[]}\n' \
   > "$RUN/review-round-1.json"
 # Dual-review siblings that must NOT appear as rounds:
 printf '{"verdict":"GARBAGE_BLIND","summary":"blind"}\n' > "$RUN/review-round-1.blind.json"
-printf '{"schema_version":"ca_codex_review.v1","summary":"GARBAGE_CODEX","coverage":"full","findings":[]}\n' \
+printf '{"schema_version":"ca_codex_review.v1","pr":1,"head_sha":"0123456789abcdef0123456789abcdef01234567","summary":"GARBAGE_CODEX","coverage":"full","findings":[]}\n' \
   > "$RUN/review-round-1.codex.json"
-printf '{"dual_review":true,"codex":{"status":"unavailable","reason":"codex_unavailable_or_oversized"},"synthesis":{"status":"skipped_codex_unavailable"}}\n' \
+printf '{"dual_review":true,"codex":{"status":"unavailable","reason":"invalid_configuration"},"synthesis":{"status":"skipped_codex_unavailable"}}\n' \
   > "$RUN/review-round-1.meta.json"
 
 OUT="$TMP/comment.md"
@@ -39,6 +39,6 @@ grep -q "Round 1" "$OUT" || { echo "FAIL: final round missing" >&2; exit 1; }
 grep -q "GARBAGE" "$OUT" && { echo "FAIL: sibling files leaked into the summary" >&2; exit 1; }
 [ "$(grep -c "Claude verdict" "$OUT")" -eq 2 ] || { echo "FAIL: expected exactly 2 rounds" >&2; cat "$OUT" >&2; exit 1; }
 # The meta sidecar must still annotate its real round:
-grep -q "codex_unavailable_or_oversized" "$OUT" || { echo "FAIL: meta sidecar not surfaced" >&2; exit 1; }
+grep -q "invalid_configuration" "$OUT" || { echo "FAIL: meta sidecar not surfaced" >&2; exit 1; }
 
 echo "post-summary-test.sh: ok"

@@ -1,0 +1,7 @@
+interface:
+  display_name: "ca: Bounded Second Opinion"
+  short_description: "Internal bounded Codex review leg"
+  default_prompt: "Use $ca-second-opinion only with the complete trusted ca dual-review orchestrator inputs; otherwise explain that this internal skill cannot run standalone."
+
+policy:
+  allow_implicit_invocation: false

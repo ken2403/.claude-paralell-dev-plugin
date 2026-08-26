@@ -15,7 +15,7 @@ cat > "$BLIND" <<'JSON'
 {"schema_version":"ca_claude_review.v1","producer":"blind","round":1,"mode":"final","pr":12,"head_sha":"0123456789abcdef0123456789abcdef01234567","verdict":"request_changes","summary":"blind","findings":[{"id":"C001","blocking":true,"severity":"major","title":"blind blocker","evidence":"a.py:1","recommended_fix":"fix it"}],"verification":[]}
 JSON
 cat > "$SECOND" <<'JSON'
-{"schema_version":"ca_codex_review.v1","summary":"codex","coverage":"full","findings":[{"id":"X001","blocking":true,"severity":"major","file":"a.py","line":1,"title":"codex claim","evidence":"e","recommended_fix":"fix"}]}
+{"schema_version":"ca_codex_review.v1","pr":12,"head_sha":"0123456789abcdef0123456789abcdef01234567","summary":"codex","coverage":"full","findings":[{"id":"X001","blocking":true,"severity":"major","file":"a.py","line":1,"title":"codex claim","evidence":"e","recommended_fix":"fix"}]}
 JSON
 
 make_claude() {

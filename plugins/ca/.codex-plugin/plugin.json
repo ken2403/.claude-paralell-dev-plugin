@@ -1,7 +1,7 @@
 {
   "name": "ca",
-  "version": "0.5.0+codex.20260825013426",
-  "description": "Codex side of the ca loop: implement a milestone plan test-first in an isolated worktree, open a draft PR early, pass Claude checkpoints and the final dual-model review, then promote the validated PR to ready.",
+  "version": "0.5.0+codex.20260826185222",
+  "description": "Codex side of the ca loop: implement a milestone plan test-first in an isolated worktree and provide the explicit-only bounded second-opinion skill used by the final dual-model review.",
   "author": {
     "name": "ken2403",
     "url": "https://github.com/ken2403"
@@ -21,7 +21,7 @@
   "interface": {
     "displayName": "ca (Codex side)",
     "shortDescription": "Build with checkpoint and dual review",
-    "longDescription": "Implement a milestone-grouped plan test-first in an isolated worktree, open a draft PR after the first milestone, pass Claude checkpoint gates, and use the blind-Claude plus offline-Codex final review before promotion to ready.",
+    "longDescription": "Implement a milestone-grouped plan test-first in an isolated worktree, pass Claude checkpoint gates, and provide an explicit-only bounded single-agent Codex second opinion for the final dual review before promotion to ready.",
     "developerName": "ken2403",
     "category": "Productivity",
     "capabilities": [

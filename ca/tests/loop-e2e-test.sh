@@ -179,13 +179,23 @@ chmod +x "$TMP/bin/claude"
 cat > "$TMP/bin/codex" <<'SH'
 #!/usr/bin/env bash
 set -euo pipefail
-cat > /dev/null   # consume the host-built prompt on stdin
-cat <<'JSON'
-{"schema_version":"ca_codex_review.v1","coverage":"full",
+if [ "${1:-} ${2:-}" = "exec --help" ]; then
+  printf '%s\n' '--ignore-user-config --ignore-rules --ephemeral --disable --sandbox --output-schema'
+  exit 0
+fi
+if [ "${1:-} ${2:-}" = "features list" ]; then
+  printf '%s stable true\n' apps browser_use browser_use_external browser_use_full_cdp_access \
+    computer_use hooks image_generation in_app_browser multi_agent plugins remote_plugin \
+    plugin_sharing skill_mcp_dependency_install
+  exit 0
+fi
+prompt="$(cat)"
+pr="$(printf '%s\n' "$prompt" | awk '/^PR: / {print $2; exit}')"
+head_sha="$(printf '%s\n' "$prompt" | awk '/^Reviewed head_sha: / {print $3; exit}')"
+printf '{"schema_version":"ca_codex_review.v1","pr":%s,"head_sha":"%s","coverage":"full",
  "summary":"Reviewed the wallet withdraw change against the plan.",
  "findings":[{"id":"X001","blocking":false,"severity":"minor","file":"src/wallet.py","line":9,
-   "title":"withdraw may mutate the caller's entry list","evidence":"advisory: the return path was not fully traced","recommended_fix":"return a new list explicitly"}]}
-JSON
+   "title":"withdraw may mutate the caller'"'"'s entry list","evidence":"advisory: the return path was not fully traced","recommended_fix":"return a new list explicitly"}]}\n' "$pr" "$head_sha"
 SH
 chmod +x "$TMP/bin/codex"
 
