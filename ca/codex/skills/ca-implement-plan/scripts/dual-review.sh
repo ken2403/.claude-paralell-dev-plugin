@@ -91,6 +91,7 @@ import os
 import signal
 import subprocess
 import sys
+import time
 
 child = subprocess.Popen(["bash", *sys.argv[1:]], start_new_session=True)
 
@@ -100,14 +101,14 @@ def stop(_signum, _frame):
         os.killpg(child.pid, signal.SIGTERM)
     except ProcessLookupError:
         pass
+    # Do not call Popen.wait() recursively from a signal handler: on some POSIX runtimes the
+    # interrupted wait owns Popen's waitpid lock. Give the launcher's own TERM handler time to
+    # kill its nested Codex group, then force-kill any remaining members of this outer group.
+    time.sleep(1)
     try:
-        child.wait(timeout=1)
-    except subprocess.TimeoutExpired:
-        try:
-            os.killpg(child.pid, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
-        child.wait()
+        os.killpg(child.pid, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
     raise SystemExit(143)
 
 

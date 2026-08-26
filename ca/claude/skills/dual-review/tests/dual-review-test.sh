@@ -113,7 +113,7 @@ case "${CODEX_MODE:-finding}" in
     ;;
   invalid) printf '{"schema_version":"wrong"}\n';;
   longtree)
-    sleep 30 &
+    sleep 5 &
     child=$!
     printf '%s\n' "$child" > "${CODEX_DESCENDANT_PID:?}"
     wait "$child"

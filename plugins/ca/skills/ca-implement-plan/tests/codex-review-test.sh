@@ -157,14 +157,14 @@ PY
     echo "diagnostic-first-line" >&2
     i=0; while [ "$i" -lt 300 ]; do echo "diagnostic-padding-$i-xxxxxxxxxxxxxxxx" >&2; i=$((i + 1)); done
     echo "diagnostic-last-line" >&2
-    sleep 30 &
+    sleep 5 &
     child=$!
     printf '%s\n' "$child" > "${CODEX_CHILD_PID:?}"
     wait "$child"
     ;;
   process_tree)
     cat >"${CODEX_CAPTURE_PROMPT:?}"
-    sleep 30 &
+    sleep 5 &
     child=$!
     printf '%s\n' "$child" > "${CODEX_CHILD_PID:?}"
     wait "$child"
@@ -172,7 +172,7 @@ PY
   binary_timeout)
     cat >"${CODEX_CAPTURE_PROMPT:?}"
     i=0; while [ "$i" -lt 1000 ]; do printf '\377' >&2; i=$((i + 1)); done
-    sleep 30
+    sleep 5
     ;;
   *) echo "bad CODEX_MODE" >&2; exit 9;;
 esac
