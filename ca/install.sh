@@ -3,8 +3,8 @@
 #
 #   ca/install.sh [--codex] [--claude] [--force] [--dry-run] [--check]
 #
-# --codex   Copy the Codex skill into $CODEX_HOME/skills (default ~/.codex/skills),
-#           so a Codex session discovers $ca-implement-plan. Restart Codex afterwards.
+# --codex   Copy both Codex skills into $CODEX_HOME/skills (default ~/.codex/skills),
+#           so Codex discovers $ca-implement-plan and internal $ca-second-opinion.
 # --claude  Print how to install the Claude Code plugin (marketplace or --plugin-dir).
 # --force   Overwrite an existing installed skill directory.
 # --dry-run Print planned actions without changing anything.
@@ -16,9 +16,9 @@
 set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"            # .../ca
-SKILL_SRC="$HERE/codex/skills/ca-implement-plan"
+SKILLS_SRC_ROOT="$HERE/codex/skills"
+SKILL_NAMES=(ca-implement-plan ca-second-opinion)
 DEST_ROOT="${CODEX_HOME:-$HOME/.codex}/skills"
-DEST="$DEST_ROOT/ca-implement-plan"
 
 do_codex=0 do_claude=0 force=0 dry=0 check=0
 while [ $# -gt 0 ]; do case "$1" in
@@ -29,29 +29,46 @@ while [ $# -gt 0 ]; do case "$1" in
   *) echo "unknown arg: $1" >&2; exit 2;; esac; done
 [ "$do_codex" = 0 ] && [ "$do_claude" = 0 ] && { do_codex=1; do_claude=1; }
 
-[ -f "$SKILL_SRC/SKILL.md" ] || { echo "ca skill not found at $SKILL_SRC" >&2; exit 1; }
+for skill_name in "${SKILL_NAMES[@]}"; do
+  [ -f "$SKILLS_SRC_ROOT/$skill_name/SKILL.md" ] \
+    || { echo "ca skill not found at $SKILLS_SRC_ROOT/$skill_name" >&2; exit 1; }
+done
 
 if [ "$do_codex" = 1 ]; then
-  echo "[ca] Codex skill: $SKILL_SRC -> $DEST"
-  if [ "$check" = 1 ]; then
-    [ -d "$DEST" ] || { echo "[ca] installed skill missing: $DEST" >&2; exit 1; }
-    diff -qr -x __pycache__ -x '*.pyc' "$SKILL_SRC" "$DEST" >/dev/null || {
-      echo "[ca] installed skill is stale; run: bash ca/install.sh --codex --force" >&2
-      diff -qr -x __pycache__ -x '*.pyc' "$SKILL_SRC" "$DEST" || true
-      exit 1
-    }
-    echo "[ca] installed Codex skill matches the repository source. ✔"
-  elif [ "$dry" = 1 ]; then
-    echo "[ca] (dry-run) would copy skill (no source files are modified)"
-  else
-    if [ -e "$DEST" ] && [ "$force" = 0 ]; then
-      echo "[ca] $DEST already exists; pass --force to overwrite." >&2; exit 1
-    fi
-    mkdir -p "$DEST_ROOT"; rm -rf "$DEST"; cp -R "$SKILL_SRC" "$DEST"
-    diff -qr -x __pycache__ -x '*.pyc' "$SKILL_SRC" "$DEST" >/dev/null || {
-      echo "[ca] copy verification failed: $DEST" >&2; exit 1; }
-    echo "[ca] installed. Restart Codex to pick up new skills."
+  if [ "$check" = 0 ] && [ "$dry" = 0 ] && [ "$force" = 0 ]; then
+    for skill_name in "${SKILL_NAMES[@]}"; do
+      dest="$DEST_ROOT/$skill_name"
+      [ ! -e "$dest" ] || {
+        echo "[ca] $dest already exists; pass --force to overwrite." >&2
+        exit 1
+      }
+    done
   fi
+
+  for skill_name in "${SKILL_NAMES[@]}"; do
+    skill_src="$SKILLS_SRC_ROOT/$skill_name"
+    dest="$DEST_ROOT/$skill_name"
+    echo "[ca] Codex skill: $skill_src -> $dest"
+    if [ "$check" = 1 ]; then
+      [ -d "$dest" ] || { echo "[ca] installed skill missing: $dest" >&2; exit 1; }
+      diff -qr -x __pycache__ -x '*.pyc' "$skill_src" "$dest" >/dev/null || {
+        echo "[ca] installed skill is stale; run: bash ca/install.sh --codex --force" >&2
+        diff -qr -x __pycache__ -x '*.pyc' "$skill_src" "$dest" || true
+        exit 1
+      }
+      echo "[ca] installed $skill_name matches the repository source. ✔"
+    elif [ "$dry" = 1 ]; then
+      echo "[ca] (dry-run) would copy $skill_name (no source files are modified)"
+    else
+      mkdir -p "$DEST_ROOT"
+      rm -rf "$dest"
+      cp -R "$skill_src" "$dest"
+      diff -qr -x __pycache__ -x '*.pyc' "$skill_src" "$dest" >/dev/null || {
+        echo "[ca] copy verification failed: $dest" >&2; exit 1; }
+      echo "[ca] installed $skill_name."
+    fi
+  done
+  [ "$check" = 1 ] || [ "$dry" = 1 ] || echo "[ca] Restart Codex to pick up new skills."
 fi
 
 if [ "$do_claude" = 1 ]; then
@@ -73,8 +90,9 @@ fi
 
 if [ "$dry" = 0 ]; then
   echo
-  echo "[ca] Reminder: the loop needs BOTH plugins. The Codex skill calls the Claude plugin's"
-  echo "     /ca:review-pr via 'claude -p'. If you cannot install the Claude plugin globally,"
+  echo "[ca] Reminder: the loop needs BOTH plugins. The Codex plugin supplies implementation"
+  echo "     and the bounded second opinion; it calls the Claude plugin's /ca:review-pr via"
+  echo "     'claude -p'. If you cannot install the Claude plugin globally,"
   echo "     export CA_CLAUDE_PLUGIN_DIR=\"$HERE/claude\" so the review can load it with --plugin-dir."
 fi
 exit 0

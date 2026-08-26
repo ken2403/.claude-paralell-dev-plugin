@@ -78,6 +78,7 @@ case "${CODEX_MODE:-valid}" in
     ;;
   sleep)
     cat >"${CODEX_CAPTURE_PROMPT:?}"
+    echo "progress-before-timeout" >&2
     sleep 5
     ;;
   *) echo "bad CODEX_MODE" >&2; exit 9;;
@@ -125,12 +126,18 @@ dry="$TMP/out/dry-run.txt"
 "$SCRIPT" --plan "$PLAN" --pr 12 --worktree "$ROOT" --round 1 --out "$TMP/out/review.json" --dry-run > "$dry"
 grep -q 'ca_codex_review.v1' "$dry"
 grep -q 'Coverage: full' "$dry"
+grep -q '\*\*REQUIRED SKILL:\*\* Use \$ca-second-opinion' "$dry"
+grep -q "Reviewed worktree: $ROOT" "$dry"
 
 "$SCRIPT" --plan "$PLAN" --pr 12 --worktree "$ROOT" --round 1 --out "$TMP/out/review.json"
 assert_json_field "$TMP/out/review.json" schema_version ca_codex_review.v1
 assert_json_field "$TMP/out/review.json" coverage full
-grep -qx "$ROOT" "$TMP/out/cwd.txt"
-grep -q -- "-C $ROOT" "$TMP/out/args.txt"
+[ "$(cat "$TMP/out/cwd.txt")" != "$ROOT" ] || { echo "Codex ran inside the reviewed worktree" >&2; exit 1; }
+grep -q 'ca-codex-review\.' "$TMP/out/cwd.txt"
+grep -q -- '--skip-git-repo-check' "$TMP/out/args.txt"
+grep -q -- '--disable multi_agent' "$TMP/out/args.txt"
+grep -q -- 'model_reasoning_effort="medium"' "$TMP/out/args.txt"
+grep -q "Reviewed worktree: $ROOT" "$TMP/out/prompt.txt"
 
 large_diff="$TMP/large.diff"
 python3 - "$large_diff" <<'PY'
@@ -166,7 +173,11 @@ make_codex nofile
 expect_status 3 "$SCRIPT" --plan "$PLAN" --pr 12 --worktree "$ROOT" --round 1 --out "$TMP/out/nofile.json"
 
 make_codex sleep
-expect_status 3 env CA_CODEX_REVIEW_TIMEOUT=1 "$SCRIPT" --plan "$PLAN" --pr 12 --worktree "$ROOT" --round 1 --out "$TMP/out/timeout.json"
+expect_status 124 env CA_CODEX_REVIEW_TIMEOUT=1 "$SCRIPT" --plan "$PLAN" --pr 12 --worktree "$ROOT" --round 1 --out "$TMP/out/timeout.json"
+grep -q 'progress-before-timeout' "$TMP/out/timeout.codex.stderr"
+
+make_codex valid
+expect_status 2 env CA_CODEX_REVIEW_REASONING_EFFORT=turbo "$SCRIPT" --plan "$PLAN" --pr 12 --worktree "$ROOT" --round 1 --out "$TMP/out/reasoning.json"
 
 make_codex invalid
 expect_status 1 "$SCRIPT" --plan "$PLAN" --pr 12 --worktree "$ROOT" --round 1 --out "$TMP/out/invalid.json"

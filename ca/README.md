@@ -12,7 +12,7 @@ Codex   $ca-implement-plan PLAN=<abs>   (inside the worktree)
    ├─ per milestone: Claude /ca:review-pr mode=checkpoint ─▶ fix blocking before building on
    ├─ final review — dual-model by default (CA_DUAL_REVIEW=0 for Claude-only):
    │     ├─ Claude /ca:review-pr blind final review
-   │     ├─ Codex offline second-opinion review (advisory)
+   │     ├─ Codex $ca-second-opinion (bounded, offline, single-agent advisory)
    │     └─ Claude /ca:synthesize-review adjudicates one ca_claude_review.v1 verdict
    ├─ address blocking findings, push, re-review the PR   (≤ 2 final rounds)
    └─ on validated approve + zero blockers: hard gate runs gh pr ready + posts summary
@@ -51,9 +51,10 @@ ca/
                           #   review-pr + synthesize-review are the review's internal legs:
                           #   the loop and /ca:dual-review invoke them through `claude -p`.
     skills/{plan-loop,implement,review-pr,synthesize-review,dual-review,code-review,merge-pr,resolve-conflicts,clean-worktrees}/
-  codex/                  # Codex plugin ($ca-implement-plan)
+  codex/                  # Codex plugin ($ca-implement-plan + internal $ca-second-opinion)
     .codex-plugin/plugin.json
-    skills/ca-implement-plan/               # SKILL.md + agents/openai.yaml + scripts/ + references/
+    skills/ca-implement-plan/               # human entry workflow + bundled loop scripts
+    skills/ca-second-opinion/               # explicit-only bounded internal review instructions
   install.sh              # install the Codex skill into ~/.codex/skills; print the Claude install
   sync-codex-plugin.sh    # refresh/check the marketplace package mirror
 plugins/ca/               # generated, self-contained Codex marketplace package
@@ -72,7 +73,7 @@ or distributed independently.
 claude --plugin-dir /path/to/repo/ca/claude
 ```
 
-**Codex plugin** (implement side):
+**Codex plugin** (implementation + bounded second-opinion side):
 
 ```bash
 # Plugin-aware Codex install from the latest main branch:
@@ -105,8 +106,8 @@ detects drift. The direct `install.sh` copy remains available for older/non-plug
 
 **Reviewing a PR by hand: `/ca:dual-review [pr] [plan-path]`** — the single entry point. It is the
 loop's Claude×Codex final review as a command, usable on any PR at any time (including re-reviews
-after the loop). Add `--claude-only` for a single-model review; the Codex leg is optional anyway
-and degrades visibly to Claude-only. Artifacts land in `.ca/reviews/pr-<n>/`.
+after the loop). Add `--claude-only` for a single-model review. A missing, invalid, or timed-out
+Codex leg degrades visibly to Claude-only. Artifacts land in `.ca/reviews/pr-<n>/`.
 
 `/ca:review-pr` and `/ca:synthesize-review` exist as that command's internal legs — the blind
 review and the adjudication the orchestrator drives through `claude -p`. They are not second
@@ -163,8 +164,11 @@ In a dual final round:
 
 1. `dual-review.sh` starts both independent legs concurrently and keeps the current Codex artifact
    outside the worktree until blind Claude finishes.
-2. `codex-review.sh` fetches PR metadata/diff on the host, builds a bounded prompt, and runs
-   `codex exec --sandbox read-only --output-schema` with no network or `gh` access inside Codex.
+2. `codex-review.sh` fetches PR metadata/diff on the host, builds a bounded prompt that explicitly
+   invokes `$ca-second-opinion`, and runs `codex exec --disable multi_agent --sandbox read-only
+   --output-schema`. The child starts from an isolated temporary root and reads the reviewed
+   worktree by absolute path, preventing repository-specific review skills from implicitly taking
+   over the leg. It has no network or `gh` access inside Codex.
 3. `claude-review.sh` runs the normal blind Claude final review and is instructed not to read prior
    `.ca` review artifacts.
 4. If Codex reports findings, warnings, or partial coverage, `synthesize-review.sh` invokes
@@ -181,11 +185,11 @@ nonzero and the invalid/unavailable rate is below 20%.
 
 ## Both plugins are required
 
-The loop only works with **both** sides installed: the Codex skill implements, and it calls the
-Claude plugin's `/ca:review-pr` (via `claude -p`) to review. Installing only one side makes every
-review round fail. `bash ca/install.sh` with no flags handles the Codex install and prints/checks
-the Claude side. If you cannot install the Claude plugin globally, set `CA_CLAUDE_PLUGIN_DIR` so the
-review call can load it with `--plugin-dir`.
+The full loop needs **both** sides installed: the Codex plugin supplies `$ca-implement-plan` and the
+internal explicit-only `$ca-second-opinion`; the Claude plugin supplies `/ca:review-pr` and
+`/ca:synthesize-review`. `bash ca/install.sh` with no flags installs both Codex skills and
+prints/checks the Claude side. If you cannot install the Claude plugin globally, set
+`CA_CLAUDE_PLUGIN_DIR` so the review call can load it with `--plugin-dir`.
 
 ## Environment overrides
 
@@ -200,6 +204,8 @@ review call can load it with `--plugin-dir`.
   runaway guard, not a per-call estimate: `claude` refuses up front once session spend already
   exceeds it, so a too-small value fails every leg before any work happens.
 - `CA_CODEX_REVIEW_TIMEOUT` — timeout for the Codex second-opinion leg, default 900 seconds.
+- `CA_CODEX_REVIEW_REASONING_EFFORT` — bounded child-review reasoning effort, default `medium`;
+  accepts `none|low|medium|high|xhigh|max`.
 - `CA_CLAUDE_REVIEW_TIMEOUT` — timeout for each Claude review leg, default 900 seconds.
 - `CA_CLAUDE_SYNTHESIS_TIMEOUT` — optional separate synthesis timeout; defaults to the Claude
   review timeout.

@@ -10,6 +10,7 @@ set -euo pipefail
 CODEX_BIN="${CODEX_BIN:-codex}"
 GH_BIN="${GH_BIN:-gh}"
 TIMEOUT_SECONDS="${CA_CODEX_REVIEW_TIMEOUT:-900}"
+REASONING_EFFORT="${CA_CODEX_REVIEW_REASONING_EFFORT:-medium}"
 FULL_DIFF_BYTES="${CA_CODEX_REVIEW_FULL_DIFF_BYTES:-180000}"
 FALLBACK_PROMPT_BYTES="${CA_CODEX_REVIEW_FALLBACK_PROMPT_BYTES:-360000}"
 
@@ -32,6 +33,11 @@ done
 }
 [ -f "$PLAN" ] || { echo "codex-review: plan not found: $PLAN" >&2; exit 4; }
 [ -d "$WT" ] || { echo "codex-review: worktree not found: $WT" >&2; exit 4; }
+WT="$(cd "$WT" && pwd)"
+case "$REASONING_EFFORT" in
+  none|low|medium|high|xhigh|max) ;;
+  *) echo "codex-review: CA_CODEX_REVIEW_REASONING_EFFORT must be none, low, medium, high, xhigh, or max" >&2; exit 2;;
+esac
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCHEMA="$SCRIPT_DIR/codex-review-schema.json"
@@ -97,13 +103,13 @@ print(f"{len(files)} files changed")
 PY
 
 set +e
-python3 - "$PLAN" "$META" "$DIFF" "$NAMES" "$STAT" "$ROUND" "$FULL_DIFF_BYTES" "$FALLBACK_PROMPT_BYTES" "$COVERAGE_EXPECTED" > "$PROMPT" <<'PY'
+python3 - "$PLAN" "$META" "$DIFF" "$NAMES" "$STAT" "$ROUND" "$FULL_DIFF_BYTES" "$FALLBACK_PROMPT_BYTES" "$WT" "$COVERAGE_EXPECTED" > "$PROMPT" <<'PY'
 import json
 import re
 import sys
 from pathlib import Path
 
-plan_path, meta_path, diff_path, names_path, stat_path, round_s, full_s, fallback_s, coverage_path = sys.argv[1:]
+plan_path, meta_path, diff_path, names_path, stat_path, round_s, full_s, fallback_s, wt, coverage_path = sys.argv[1:]
 plan = Path(plan_path).read_text(encoding="utf-8", errors="replace")
 meta = json.loads(Path(meta_path).read_text(encoding="utf-8"))
 diff = Path(diff_path).read_text(encoding="utf-8", errors="replace")
@@ -164,7 +170,15 @@ if diff_bytes > full_limit:
         print("oversized_diff: fallback prompt exceeds CA_CODEX_REVIEW_FALLBACK_PROMPT_BYTES", file=sys.stderr)
         sys.exit(3)
 
-prompt = f"""You are Codex performing an advisory second-opinion review for the ca loop.
+prompt = f"""**REQUIRED SKILL:** Use $ca-second-opinion.
+
+You are Codex performing the bounded advisory second-opinion review for the ca loop.
+
+This is one single-agent pass. Do not spawn subagents or invoke repository-specific PR-review,
+audit, or adversarial-review workflows. The process also disables multi-agent tools and runs from
+an isolated temporary root so the reviewed repository's skills cannot be selected implicitly.
+Use the reviewed worktree only through absolute paths or `git -C`; read the governing AGENTS.md
+files, but do not read `.agents/skills`.
 
 Return exactly one JSON object matching schema ca_codex_review.v1. Do not include Markdown.
 There is deliberately no verdict field; your findings never gate the PR directly.
@@ -177,6 +191,7 @@ worktree. Do not read review artifacts under .ca/runs or .ca/reviews — those a
 verdicts from this or an earlier round, and reading them turns a second opinion into an echo.
 
 Round: {round_s}
+Reviewed worktree: {wt}
 PR metadata:
 ```json
 {json.dumps(meta, indent=2, sort_keys=True)}
@@ -215,32 +230,68 @@ if [ "$DRY_RUN" -eq 1 ]; then
 fi
 
 rm -f "$RAW" "$ERR"
-if ! python3 - "$CODEX_BIN" "$SCHEMA" "$PROMPT" "$RAW" "$ERR" "$TIMEOUT_SECONDS" "$WT" <<'PY'
+set +e
+python3 - "$CODEX_BIN" "$SCHEMA" "$PROMPT" "$RAW" "$ERR" "$TIMEOUT_SECONDS" "$REASONING_EFFORT" <<'PY'
 import subprocess
 import sys
 from pathlib import Path
 
-codex, schema, prompt_path, raw_path, err_path, timeout_s, wt = sys.argv[1:]
+codex, schema, prompt_path, raw_path, err_path, timeout_s, reasoning_effort = sys.argv[1:]
 prompt = Path(prompt_path).read_text(encoding="utf-8")
+isolated_root = str(Path(prompt_path).parent)
+
+
+def output_text(value):
+    if value is None:
+        return ""
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    return value
+
+
 try:
     proc = subprocess.run(
-        [codex, "exec", "-C", wt, "--sandbox", "read-only", "--output-schema", schema, "-"],
+        [
+            codex,
+            "exec",
+            "-C",
+            isolated_root,
+            "--skip-git-repo-check",
+            "--disable",
+            "multi_agent",
+            "-c",
+            f'model_reasoning_effort="{reasoning_effort}"',
+            "--sandbox",
+            "read-only",
+            "--output-schema",
+            schema,
+            "-",
+        ],
         input=prompt,
         text=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
-        cwd=wt,
+        cwd=isolated_root,
         timeout=int(timeout_s),
         check=False,
     )
 except subprocess.TimeoutExpired as e:
-    Path(err_path).write_text(f"codex exec timed out after {timeout_s}s\n{e}\n", encoding="utf-8")
+    stdout = output_text(e.stdout)
+    stderr = output_text(e.stderr)
+    Path(raw_path).write_text(stdout, encoding="utf-8")
+    Path(err_path).write_text(
+        f"codex exec timed out after {timeout_s}s\n{e}\n"
+        f"--- partial codex stderr ---\n{stderr}",
+        encoding="utf-8",
+    )
     sys.exit(124)
 Path(raw_path).write_text(proc.stdout, encoding="utf-8")
 Path(err_path).write_text(proc.stderr, encoding="utf-8")
 sys.exit(proc.returncode)
 PY
-then
+codex_status=$?
+set -e
+if [ "$codex_status" -ne 0 ]; then
   {
     echo "codex-review: codex exec failed; stderr: $ERR"
     if [ -s "$ERR" ]; then
@@ -249,6 +300,7 @@ then
       echo "--- end stderr tail ---"
     fi
   } >&2
+  [ "$codex_status" -eq 124 ] && exit 124
   exit 3
 fi
 

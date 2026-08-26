@@ -1,0 +1,7 @@
+interface:
+  display_name: "ca: Bounded Second Opinion"
+  short_description: "Internal bounded Codex review leg"
+  default_prompt: "Use $ca-second-opinion to produce one bounded offline advisory review JSON."
+
+policy:
+  allow_implicit_invocation: false

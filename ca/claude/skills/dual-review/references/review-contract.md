@@ -135,6 +135,10 @@ depends on who produced the round's JSON. A round that re-runs the Codex leg rec
 `prior_findings_rechecked: true` in the synthesis `second_opinion` block. A round that does NOT
 re-run it produces no synthesis JSON at all, so the flag lives in that round's
 `review-round-N.meta.json` sidecar's `codex` object, where `dual-review.sh` writes it.
+An unavailable Codex leg records a machine-readable reason. `codex_timeout` means the bounded
+child exceeded `CA_CODEX_REVIEW_TIMEOUT`; its partial stderr remains in
+`review-round-N.codex-leg.log`. Other reasons distinguish input fetch failure, invalid output, and
+generic binary/startup or oversized-prompt failure. No unavailable leg produces synthesis JSON.
 
 ## Codex second-opinion contract (ca_codex_review.v1)
 

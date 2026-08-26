@@ -2,8 +2,8 @@
   "$schema": "https://json.schemastore.org/claude-code-plugin.json",
   "name": "ca",
   "displayName": "Cooperate Agents",
-  "description": "Claude side of the ca loop: red-team a milestone plan with Codex, run checkpoint reviews on the draft PR, perform the blind final review and dual-review synthesis, then provide gated merge, conflict resolution, and safe worktree cleanup.",
-  "version": "0.5.1",
+  "description": "Claude side of the ca loop: red-team a milestone plan with Codex, run checkpoint reviews on the draft PR, orchestrate a blind final review with a bounded Codex second opinion, synthesize the result, then provide gated merge, conflict resolution, and safe worktree cleanup.",
+  "version": "0.5.2",
   "author": {
     "name": "ken2403"
   },

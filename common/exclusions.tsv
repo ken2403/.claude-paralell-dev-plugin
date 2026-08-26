@@ -23,6 +23,8 @@ ca/codex/skills/ca-implement-plan/tests/new-worktree-test.sh	ca/codex test cover
 ca/codex/skills/ca-implement-plan/tests/post-summary-test.sh	ca/codex test covers the exchange-summary glob filtering.
 ca/codex/skills/ca-implement-plan/tests/promote-pr-test.sh	ca/codex test covers the promotion gate, including the pr/head_sha subject binding.
 ca/codex/skills/ca-implement-plan/tests/synthesize-review-test.sh	ca/codex test covers Claude synthesis wrapper behavior.
+ca/codex/skills/ca-second-opinion/SKILL.md	ca/codex owns the bounded internal second-opinion contract mirrored into its marketplace package.
+ca/codex/skills/ca-second-opinion/agents/openai.yaml	ca/codex owns the explicit-only policy for its internal second-opinion skill.
 ha/skills/implement/scripts/new-worktree.sh	ha worktree creation has reuse behavior specific to implementation planning.
 ha/skills/resolve-conflicts/SKILL.md	ha conflict resolution uses verifier and systematic-debugging guidance.
 ha/skills/review-pr/SKILL.md	ha review uses ha verifier/analyzer workflow.

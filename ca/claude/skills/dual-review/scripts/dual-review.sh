@@ -130,6 +130,10 @@ case "$CODEX_RC" in
       printf '{"dual_review":true,"codex":{"status":"used","coverage":"%s"},"synthesis":{"status":"used"}}\n' "$COVERAGE" > "$META"
     fi
     ;;
+  124)
+    printf '{"dual_review":true,"codex":{"status":"unavailable","reason":"codex_timeout"%s},"synthesis":{"status":"skipped_codex_unavailable"}}\n' "$PRIOR_RECHECK" > "$META"
+    cp "$BLIND" "$FINAL"
+    ;;
   1)
     printf '{"dual_review":true,"codex":{"status":"invalid","reason":"schema_validation_failed"%s},"synthesis":{"status":"skipped_codex_invalid"}}\n' "$PRIOR_RECHECK" > "$META"
     cp "$BLIND" "$FINAL"

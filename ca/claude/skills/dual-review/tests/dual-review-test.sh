@@ -12,10 +12,11 @@
 #                                     prior_findings_rechecked:false
 #   5. Blind Claude review fails    → dual-review exits 1, no final JSON
 #   6. Blind Claude review times out → dual-review exits 1, no final JSON
-#   8. --claude-only: no Codex process is started at all, the blind verdict gates directly,
+#   7. Codex times out             → visible timeout degrade; final == blind
+#   9. --claude-only: no Codex process is started at all, the blind verdict gates directly,
 #      and the meta says dual_review:false / codex disabled. This is the single-model review
 #      that used to need its own command.
-#   7. ISOLATION: while the Codex leg runs, the blind Claude verdict is NOT visible
+#   8. ISOLATION: while the Codex leg runs, the blind Claude verdict is NOT visible
 #      anywhere in the worktree/out-dir it can read. The Codex leg reviews with read
 #      access to the tree, so publishing the blind answer early would turn the second
 #      opinion into an echo of the first.
@@ -77,6 +78,7 @@ cat > /dev/null   # consume the prompt on stdin
 case "${CODEX_MODE:-finding}" in
   finding) printf '{"schema_version":"ca_codex_review.v1","summary":"codex","coverage":"full","findings":[{"id":"X001","blocking":true,"severity":"major","file":"a.txt","line":1,"title":"codex claim","evidence":"e","recommended_fix":"f"}]}\n';;
   clean)   printf '{"schema_version":"ca_codex_review.v1","summary":"codex","coverage":"full","findings":[]}\n';;
+  timeout) echo "codex-progress-before-timeout" >&2; sleep 5;;
   leakprobe)
     sleep 1   # let the (instant) blind leg finish first
     { ls "${CA_TEST_OUTDIR:?}" 2>/dev/null | grep -c 'blind' || true; } > "${CA_TEST_LEAK_MARKER:?}"
@@ -129,17 +131,28 @@ set -e
 [ "$RC" -ne 0 ] || fail "case6: expected non-zero exit when the blind review timed out"
 [ ! -f "$D6/review-round-1.json" ] || fail "case6: a final verdict was fabricated after timeout"
 
-# 7. the blind verdict must not be readable by the Codex leg while it is still reviewing
+# 7. Codex timeout → explicit timeout degrade, blind verdict remains usable
 D7="$TMP/out/case7"
-export CA_TEST_OUTDIR="$D7" CA_TEST_LEAK_MARKER="$TMP/leak.marker"
-CODEX_MODE=leakprobe bash "$SCRIPT" --pr 7 --plan "$PLAN" --worktree "$WT" --round 1 --out-dir "$D7" >/dev/null
+CA_CODEX_REVIEW_TIMEOUT=1 CODEX_MODE=timeout bash "$SCRIPT" \
+  --pr 7 --plan "$PLAN" --worktree "$WT" --round 1 --out-dir "$D7" >/dev/null
+cmp -s "$D7/review-round-1.json" "$D7/review-round-1.blind.json" \
+  || fail "case7: timeout degrade did not fall back to blind"
+grep -q '"reason":"codex_timeout"' "$D7/review-round-1.meta.json" \
+  || fail "case7: meta does not distinguish a Codex timeout"
+grep -q 'codex-progress-before-timeout' "$D7/review-round-1.codex-leg.log" \
+  || fail "case7: Codex progress before timeout was discarded"
+
+# 8. the blind verdict must not be readable by the Codex leg while it is still reviewing
+D8="$TMP/out/case8"
+export CA_TEST_OUTDIR="$D8" CA_TEST_LEAK_MARKER="$TMP/leak.marker"
+CODEX_MODE=leakprobe bash "$SCRIPT" --pr 7 --plan "$PLAN" --worktree "$WT" --round 1 --out-dir "$D8" >/dev/null
 [ "$(cat "$TMP/leak.marker")" = "0" ] \
-  || fail "case7: the Codex leg could see $(cat "$TMP/leak.marker") blind artifact(s) mid-review"
-[ -f "$D7/review-round-1.blind.json" ] || fail "case7: the blind review was not published afterwards"
+  || fail "case8: the Codex leg could see $(cat "$TMP/leak.marker") blind artifact(s) mid-review"
+[ -f "$D8/review-round-1.blind.json" ] || fail "case8: the blind review was not published afterwards"
 unset CA_TEST_OUTDIR CA_TEST_LEAK_MARKER
 
-# 8. --claude-only must not start a Codex process at all
-D8="$TMP/out/case8"
+# 9. --claude-only must not start a Codex process at all
+D9="$TMP/out/case9"
 CODEX_MARKER="$TMP/codex.invoked"; rm -f "$CODEX_MARKER"
 cat > "$TMP/bin/codex-tattle" <<SH
 #!/usr/bin/env bash
@@ -149,11 +162,11 @@ printf '{"schema_version":"ca_codex_review.v1","summary":"x","coverage":"full","
 SH
 chmod +x "$TMP/bin/codex-tattle"
 CODEX_BIN="$TMP/bin/codex-tattle" bash "$SCRIPT" --pr 7 --plan "$PLAN" --worktree "$WT" \
-  --round 1 --out-dir "$D8" --claude-only >/dev/null
-[ ! -f "$CODEX_MARKER" ] || fail "case8: --claude-only still ran the Codex leg"
-grep -q '"dual_review":false' "$D8/review-round-1.meta.json" || fail "case8: meta does not record the single-model run"
-grep -q '"status":"disabled"' "$D8/review-round-1.meta.json" || fail "case8: meta does not disable the second opinion"
-cmp -s "$D8/review-round-1.json" "$D8/review-round-1.blind.json" || fail "case8: final is not the blind review"
-[ ! -f "$D8/review-round-1.codex.json" ] || fail "case8: a Codex artifact appeared"
+  --round 1 --out-dir "$D9" --claude-only >/dev/null
+[ ! -f "$CODEX_MARKER" ] || fail "case9: --claude-only still ran the Codex leg"
+grep -q '"dual_review":false' "$D9/review-round-1.meta.json" || fail "case9: meta does not record the single-model run"
+grep -q '"status":"disabled"' "$D9/review-round-1.meta.json" || fail "case9: meta does not disable the second opinion"
+cmp -s "$D9/review-round-1.json" "$D9/review-round-1.blind.json" || fail "case9: final is not the blind review"
+[ ! -f "$D9/review-round-1.codex.json" ] || fail "case9: a Codex artifact appeared"
 
 echo "dual-review-test.sh: ok"

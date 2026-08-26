@@ -92,7 +92,9 @@ CODEX_SKILL_VALIDATOR="${CODEX_SKILL_VALIDATOR:-$HOME/.codex/skills/.system/skil
 if python3 -c 'import yaml' >/dev/null 2>&1 && [ -f "$CODEX_PLUGIN_VALIDATOR" ] && [ -f "$CODEX_SKILL_VALIDATOR" ]; then
   python3 "$CODEX_PLUGIN_VALIDATOR" plugins/ca
   python3 "$CODEX_PLUGIN_VALIDATOR" plugins/ha
-  python3 "$CODEX_SKILL_VALIDATOR" ca/codex/skills/ca-implement-plan
+  while IFS= read -r skill; do
+    python3 "$CODEX_SKILL_VALIDATOR" "$skill"
+  done < <(find ca/codex/skills -mindepth 1 -maxdepth 1 -type d | sort)
   while IFS= read -r skill; do
     python3 "$CODEX_SKILL_VALIDATOR" "$skill"
   done < <(find plugins/ha/skills -mindepth 1 -maxdepth 1 -type d | sort)
@@ -200,13 +202,14 @@ while IFS= read -r skill; do
 done < <(find ha/skills sa/skills ca/claude/skills ca/codex/skills plugins/ca/skills plugins/ha/skills -name SKILL.md | sort)
 
 echo "== ca skill packaging rules =="
-[ ! -e ca/codex/skills/ca-implement-plan/README.md ] || fail "README.md is not allowed inside a skill"
-[ ! -e plugins/ca/skills/ca-implement-plan/README.md ] || fail "README.md is not allowed inside a skill"
-grep -q '^  allow_implicit_invocation: false$' ca/codex/skills/ca-implement-plan/agents/openai.yaml \
-  || fail "side-effecting Codex skill must disable implicit invocation"
-if sed -n '1,/^---$/p' ca/codex/skills/ca-implement-plan/SKILL.md | grep -Eq '^(model|effort|disable-model-invocation):'; then
-  fail "Codex skill frontmatter contains Claude-only control fields"
-fi
+while IFS= read -r skill; do
+  [ ! -e "$skill/README.md" ] || fail "README.md is not allowed inside $skill"
+  grep -q '^  allow_implicit_invocation: false$' "$skill/agents/openai.yaml" \
+    || fail "$skill must disable implicit invocation"
+  if sed -n '1,/^---$/p' "$skill/SKILL.md" | grep -Eq '^(model|effort|disable-model-invocation):'; then
+    fail "$skill contains Claude-only frontmatter control fields"
+  fi
+done < <(find ca/codex/skills plugins/ca/skills -mindepth 1 -maxdepth 1 -type d | sort)
 
 echo "== generated modes and symlinks =="
 [ -L CLAUDE.md ] || fail "CLAUDE.md must remain a symlink to AGENTS.md"

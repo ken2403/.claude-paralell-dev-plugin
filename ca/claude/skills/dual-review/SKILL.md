@@ -24,6 +24,9 @@ subprocesses; you set up inputs, run the script, and report the result.
 - Network + authenticated `gh` (`gh auth status`).
 - `codex` (or `CODEX_BIN`) is OPTIONAL: absent/failing degrades visibly to a
   Claude-only review with the reason in the meta sidecar — never a hard failure.
+- For a real Codex leg, the ca Codex plugin must expose the explicit-only
+  `$ca-second-opinion` skill. The bundled launcher explicitly invokes it, disables multi-agent,
+  and isolates the child from repository-local skill discovery.
 
 ## Step 1 — Resolve inputs
 
@@ -73,7 +76,8 @@ point.
 It runs both legs in parallel and keeps the current-round Codex output outside the
 worktree until the blind review finishes, synthesizes when Codex found anything, skips
 synthesis on a clean full-coverage Codex pass, and
-degrades to Claude-only with a machine-readable reason when the Codex leg fails.
+degrades to Claude-only with a machine-readable reason when the Codex leg fails. A timeout is
+reported distinctly as `codex_timeout`, with partial Codex stderr retained in the leg log.
 If it exits non-zero, report the failure verbatim — do not improvise a verdict.
 
 ## Step 3 — Report
@@ -87,7 +91,7 @@ Read `review-round-N.json` and the meta sidecar; report to the human:
   `resolved_blind_findings` (blind blockers that synthesis downgraded, with
   evidence).
 - The leg statuses from the meta sidecar (e.g. Codex `used` coverage `full`,
-  or `unavailable: codex_unavailable_or_oversized` — say plainly when the
+  `unavailable: codex_timeout`, or `unavailable: codex_unavailable_or_oversized` — say plainly when the
   second opinion did NOT happen).
 
 If `--comment` was passed, also post the summary to the PR:
