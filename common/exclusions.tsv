@@ -8,6 +8,7 @@ ca/codex/.codex-plugin/plugin.json	ca/codex is a separate Codex plugin manifest.
 ca/codex/skills/ca-implement-plan/SKILL.md	ca/codex is a different tool plugin with its own skill contract.
 ca/codex/skills/ca-implement-plan/agents/openai.yaml	ca/codex agent policy is Codex-specific.
 ca/codex/skills/ca-implement-plan/references/review-contract.md	ca/codex keeps a portable copy of the review contract.
+ca/codex/skills/ca-implement-plan/references/second-opinion-skill.md	ca/codex launcher carries an exact self-contained copy of its bounded internal skill.
 ca/codex/skills/ca-implement-plan/scripts/claude-review.sh	ca/codex script invokes Claude and is not shared by Claude plugins.
 ca/codex/skills/ca-implement-plan/scripts/codex-review-schema.json	ca/codex schema is the Codex second-opinion contract and is not shared by Claude plugins.
 ca/codex/skills/ca-implement-plan/scripts/codex-review.sh	ca/codex script invokes Codex and is not shared by Claude plugins.

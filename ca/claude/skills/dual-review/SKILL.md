@@ -24,9 +24,18 @@ subprocesses; you set up inputs, run the script, and report the result.
 - Network + authenticated `gh` (`gh auth status`).
 - `codex` (or `CODEX_BIN`) is OPTIONAL: absent/failing degrades visibly to a
   Claude-only review with the reason in the meta sidecar — never a hard failure.
-- For a real Codex leg, the ca Codex plugin must expose the explicit-only
-  `$ca-second-opinion` skill. The bundled launcher explicitly invokes it, disables multi-agent,
-  and isolates the child from repository-local skill discovery.
+- The launcher materializes its exact bundled explicit-only `$ca-second-opinion` into an isolated
+  temporary root. A standalone review therefore needs the Codex binary, not an ambient ca Codex
+  plugin install. An isolated `CODEX_HOME` excludes global instructions/skills/plugins/config;
+  apps, hooks, plugins, remote plugins, plugin sharing, Web search, browser, computer,
+  image-generation, and multi-agent are disabled; shell commands inherit only the core environment
+  and filter secret-shaped variables; approvals are `never`; reviewed paths are JSON encoded and
+  their files are untrusted data.
+- The reviewed worktree must be a clean checkout whose HEAD equals the PR's `headRefOid`. The
+  launcher rechecks that the PR head did not move while fetching the diff; mismatches degrade
+  visibly as `input_fetch_failed` instead of reviewing stale callers/tests. Codex reads an
+  immutable archive of that commit, and both legs must return the same `pr` and `head_sha` before
+  clean-skip or synthesis.
 
 ## Step 1 — Resolve inputs
 
@@ -77,7 +86,10 @@ It runs both legs in parallel and keeps the current-round Codex output outside t
 worktree until the blind review finishes, synthesizes when Codex found anything, skips
 synthesis on a clean full-coverage Codex pass, and
 degrades to Claude-only with a machine-readable reason when the Codex leg fails. A timeout is
-reported distinctly as `codex_timeout`, with partial Codex stderr retained in the leg log.
+reported distinctly as `codex_timeout`; the entire child process group is terminated and a bounded
+head+tail diagnostic is retained in the leg log.
+If blind Claude fails first, the Codex launcher process group is cancelled immediately. If synthesis fails,
+the script removes any partial final JSON, writes `synthesis.status: failed`, and exits non-zero.
 If it exits non-zero, report the failure verbatim — do not improvise a verdict.
 
 ## Step 3 — Report
@@ -91,7 +103,8 @@ Read `review-round-N.json` and the meta sidecar; report to the human:
   `resolved_blind_findings` (blind blockers that synthesis downgraded, with
   evidence).
 - The leg statuses from the meta sidecar (e.g. Codex `used` coverage `full`,
-  `unavailable: codex_timeout`, or `unavailable: codex_unavailable_or_oversized` — say plainly when the
+  `unavailable: codex_timeout`, `unavailable: invalid_configuration`, or
+  `unavailable: review_input_oversized`, or `unavailable: unsupported_codex_cli` — say plainly when the
   second opinion did NOT happen).
 
 If `--comment` was passed, also post the summary to the PR:

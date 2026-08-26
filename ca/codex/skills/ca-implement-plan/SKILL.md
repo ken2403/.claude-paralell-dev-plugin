@@ -146,10 +146,12 @@ Step 3), run a checkpoint review so defects are caught before more code is built
 
    **Note what the Codex leg is and is not.** In this loop Codex is the *implementer*, so its
    review leg is a fresh-context **self-review**, not an independent second opinion. It runs
-   through the explicit-only `$ca-second-opinion` skill, read-only with no memory of the build,
-   from an isolated temporary root with multi-agent disabled and reasoning `medium` by default.
-   Repository-specific review workflows therefore cannot hijack this bounded internal leg through
-   implicit skill matching. Nothing it says can become blocking unless Claude
+   through the exact bundled explicit-only `$ca-second-opinion` skill, materialized into an isolated
+   temporary root and isolated `CODEX_HOME`, with reasoning `medium` by default. The launcher keeps
+   only file-based auth, excludes global instructions/skills/plugins/config, disables all plugin and
+   orchestration channels plus Web search, forbids approvals, JSON-encodes reviewed paths, and treats
+   the worktree (including its instruction files) as untrusted data. It requires that worktree's clean
+   HEAD to equal a stable PR `headRefOid`, so stale callers/tests cannot produce a clean pass. Nothing it says can become blocking unless Claude
    confirms it in synthesis — but a clean Codex pass is the author approving their own work, and
    must not be read as corroboration. The genuinely independent judgement is the blind Claude leg.
 
@@ -192,7 +194,10 @@ Step 3), run a checkpoint review so defects are caught before more code is built
    The dual orchestrator runs the Claude and Codex legs concurrently. It keeps the current-round
    Codex artifact outside the worktree until the blind Claude leg finishes, validates both outputs,
    and records any visible Claude-only degradation in the meta sidecar. Codex timeout degradation
-   is recorded separately as `codex_timeout` and retains partial progress in the leg log.
+   is recorded separately as `codex_timeout`, kills the whole child process group, and retains a
+   bounded head+tail diagnostic in the leg log.
+   A blind-Claude failure cancels the concurrent Codex launcher process group immediately. A synthesis
+   failure removes any partial final verdict and records `synthesis.status: failed` before exiting.
 
    The script fails loudly (non-zero) with an actionable reason if no valid review is produced — if
    it reports the API was unreachable, **STOP and ASK** the human to run the review step where

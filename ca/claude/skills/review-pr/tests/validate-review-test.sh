@@ -27,19 +27,26 @@ expect_status 0 python3 "$VALIDATOR" "$TMP/approve.json" \
   --expected-mode final --expected-round 1 --expected-producer blind
 
 cat > "$TMP/blind.json" <<'JSON'
-{"schema_version":"ca_claude_review.v1","producer":"blind","round":1,"mode":"final","verdict":"request_changes","summary":"Blind review.","findings":[{"id":"C001","blocking":true,"severity":"major","title":"Blind blocker","evidence":"src/a.py:4 violates the plan.","recommended_fix":"Correct the branch and add a regression test."}],"verification":[]}
+{"schema_version":"ca_claude_review.v1","producer":"blind","round":1,"mode":"final","pr":12,"head_sha":"0123456789abcdef0123456789abcdef01234567","verdict":"request_changes","summary":"Blind review.","findings":[{"id":"C001","blocking":true,"severity":"major","title":"Blind blocker","evidence":"src/a.py:4 violates the plan.","recommended_fix":"Correct the branch and add a regression test."}],"verification":[]}
 JSON
 expect_status 0 python3 "$VALIDATOR" "$TMP/blind.json"
 
 cat > "$TMP/codex.json" <<'JSON'
-{"schema_version":"ca_codex_review.v1","summary":"Second opinion.","coverage":"full","findings":[{"id":"X001","blocking":true,"severity":"major","file":"src/b.py","line":9,"title":"Codex claim","evidence":"src/b.py:9 drops the error.","recommended_fix":"Propagate the error."}]}
+{"schema_version":"ca_codex_review.v1","pr":12,"head_sha":"0123456789abcdef0123456789abcdef01234567","summary":"Second opinion.","coverage":"full","findings":[{"id":"X001","blocking":true,"severity":"major","file":"src/b.py","line":9,"title":"Codex claim","evidence":"src/b.py:9 drops the error.","recommended_fix":"Propagate the error."}]}
 JSON
 cat > "$TMP/synth.json" <<'JSON'
-{"schema_version":"ca_claude_review.v1","producer":"synthesis","round":1,"mode":"final","verdict":"approve","summary":"Claims resolved.","findings":[],"verification":[{"claim":"both claims checked","result":"pass","evidence":"Inspected src/a.py and src/b.py."}],"second_opinion":{"provider":"codex","status":"used","coverage":"full","ledger":[{"id":"X001","adjudication":"refuted","evidence":"The caller handles the error at src/b.py:12."}],"prior_findings_rechecked":true},"resolved_blind_findings":[{"id":"C001","reason":"Plan reading was incomplete.","evidence":"The next branch at src/a.py:8 handles it.","new_severity":"none"}]}
+{"schema_version":"ca_claude_review.v1","producer":"synthesis","round":1,"mode":"final","pr":12,"head_sha":"0123456789abcdef0123456789abcdef01234567","verdict":"approve","summary":"Claims resolved.","findings":[],"verification":[{"claim":"both claims checked","result":"pass","evidence":"Inspected src/a.py and src/b.py."}],"second_opinion":{"provider":"codex","status":"used","coverage":"full","ledger":[{"id":"X001","adjudication":"refuted","evidence":"The caller handles the error at src/b.py:12."}],"prior_findings_rechecked":true},"resolved_blind_findings":[{"id":"C001","reason":"Plan reading was incomplete.","evidence":"The next branch at src/a.py:8 handles it.","new_severity":"none"}]}
 JSON
 expect_status 0 python3 "$VALIDATOR" "$TMP/synth.json" --blind "$TMP/blind.json" \
   --second-opinion "$TMP/codex.json" --expected-mode final --expected-round 1 \
   --expected-producer synthesis
+
+python3 - "$TMP/codex.json" "$TMP/wrong-subject-codex.json" <<'PY'
+import json, sys
+d=json.load(open(sys.argv[1])); d["pr"]=13; json.dump(d, open(sys.argv[2], "w"))
+PY
+expect_status 1 python3 "$VALIDATOR" "$TMP/synth.json" --blind "$TMP/blind.json" \
+  --second-opinion "$TMP/wrong-subject-codex.json"
 
 python3 - "$TMP/synth.json" "$TMP/silent-drop.json" <<'PY'
 import json, sys

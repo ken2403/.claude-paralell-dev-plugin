@@ -243,9 +243,14 @@ def validate_escalated(value: Any) -> list[dict[str, Any]]:
 def validate_codex_review(value: Any) -> set[str]:
     if not isinstance(value, dict):
         fail("Codex second opinion must be an object")
-    reject_extra(value, {"schema_version", "summary", "coverage", "findings"}, "Codex review")
+    reject_extra(value, {"schema_version", "pr", "head_sha", "summary", "coverage", "findings"}, "Codex review")
     if value.get("schema_version") != "ca_codex_review.v1":
         fail("Codex review schema_version must be ca_codex_review.v1")
+    if not isinstance(value.get("pr"), int) or isinstance(value.get("pr"), bool) or value["pr"] < 1:
+        fail("Codex review pr must be a positive integer")
+    head_sha = require_string(value, "head_sha", "Codex review", 64)
+    if len(head_sha) < 40 or HEAD_SHA_RE.fullmatch(head_sha) is None:
+        fail("Codex review head_sha must be a 40-64 character hexadecimal commit id")
     require_string(value, "summary", "Codex review", 2000)
     if value.get("coverage") not in COVERAGES:
         fail("Codex review coverage must be full or partial")
@@ -407,6 +412,8 @@ def enforce_synthesis_ledger(
     if codex is None:
         return
     codex_ids = validate_codex_review(codex)
+    if codex["pr"] != blind.get("pr") or codex["head_sha"] != blind.get("head_sha"):
+        fail("Codex second opinion and blind review must name the same pr and head_sha")
     ledger = synthesis["second_opinion"]["ledger"]
     ledger_by_id = {item["id"]: item["adjudication"] for item in ledger}
     if set(ledger_by_id) != codex_ids:

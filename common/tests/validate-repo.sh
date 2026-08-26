@@ -125,6 +125,14 @@ for f in codex-review.sh codex-review-schema.json claude-review.sh synthesize-re
     "ca/claude/skills/dual-review/scripts/$f" \
     || fail "dual-review copy of $f must be byte-identical to the ca/codex master"
 done
+SECOND_OPINION_MASTER=ca/codex/skills/ca-second-opinion/SKILL.md
+[ -f "$SECOND_OPINION_MASTER" ] || fail "missing ca-second-opinion skill master"
+while IFS= read -r copy; do
+  cmp -s "$SECOND_OPINION_MASTER" "$copy" \
+    || fail "second-opinion skill copy $copy must be byte-identical to $SECOND_OPINION_MASTER"
+done < <(find ca -path '*/references/second-opinion-skill.md' -type f | sort)
+[ "$(find ca -path '*/references/second-opinion-skill.md' -type f | wc -l | tr -d ' ')" = 2 ] \
+  || fail "expected exactly two source second-opinion launcher copies"
 cmp -s ca/codex/skills/ca-implement-plan/scripts/new-worktree.sh \
   ca/claude/skills/implement/scripts/new-worktree.sh \
   || fail "ca new-worktree.sh copies must be byte-identical"
@@ -204,12 +212,21 @@ done < <(find ha/skills sa/skills ca/claude/skills ca/codex/skills plugins/ca/sk
 echo "== ca skill packaging rules =="
 while IFS= read -r skill; do
   [ ! -e "$skill/README.md" ] || fail "README.md is not allowed inside $skill"
-  grep -q '^  allow_implicit_invocation: false$' "$skill/agents/openai.yaml" \
-    || fail "$skill must disable implicit invocation"
   if sed -n '1,/^---$/p' "$skill/SKILL.md" | grep -Eq '^(model|effort|disable-model-invocation):'; then
     fail "$skill contains Claude-only frontmatter control fields"
   fi
 done < <(find ca/codex/skills plugins/ca/skills -mindepth 1 -maxdepth 1 -type d | sort)
+
+# Explicit invocation is a deliberate policy for the current side-effecting/internal skills, not a
+# blanket requirement that silently constrains every future read-only ca skill.
+for skill_root in ca/codex/skills plugins/ca/skills; do
+  for skill_name in ca-implement-plan ca-second-opinion; do
+    policy="$skill_root/$skill_name/agents/openai.yaml"
+    [ -f "$policy" ] || fail "missing explicit-invocation policy: $policy"
+    grep -q '^  allow_implicit_invocation: false$' "$policy" \
+      || fail "$policy must disable implicit invocation"
+  done
+done
 
 echo "== generated modes and symlinks =="
 [ -L CLAUDE.md ] || fail "CLAUDE.md must remain a symlink to AGENTS.md"

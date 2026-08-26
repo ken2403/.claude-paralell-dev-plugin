@@ -81,20 +81,77 @@ if [ "$CLAUDE_ONLY" -eq 1 ]; then
     --plan "$PLAN" --pr "$PR" --worktree "$WT" --mode final --round "$ROUND" --out "$PRIVATE_BLIND"
   BLIND_RC=$?
 else
-  bash "$SCRIPT_DIR/codex-review.sh" \
+  # The supervisor owns a separate process group for the whole Codex launcher. If blind Claude
+  # fails first, terminating the supervisor also terminates/reaps the launcher's process group
+  # instead of waiting for the full Codex timeout before reporting that no verdict is possible.
+  python3 - "$SCRIPT_DIR/codex-review.sh" \
     --plan "$PLAN" --pr "$PR" --worktree "$WT" --round "$ROUND" --out "$PRIVATE_CODEX" \
-    > "$PRIVATE_CODEX_LOG" 2>&1 &
+    > "$PRIVATE_CODEX_LOG" 2>&1 <<'PY' &
+import os
+import signal
+import subprocess
+import sys
+
+child = subprocess.Popen(["bash", *sys.argv[1:]], start_new_session=True)
+
+
+def stop(_signum, _frame):
+    try:
+        os.killpg(child.pid, signal.SIGTERM)
+    except ProcessLookupError:
+        pass
+    try:
+        child.wait(timeout=1)
+    except subprocess.TimeoutExpired:
+        try:
+            os.killpg(child.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        child.wait()
+    raise SystemExit(143)
+
+
+signal.signal(signal.SIGTERM, stop)
+signal.signal(signal.SIGINT, stop)
+raise SystemExit(child.wait())
+PY
   CODEX_JOB=$!
   bash "$SCRIPT_DIR/claude-review.sh" \
     --plan "$PLAN" --pr "$PR" --worktree "$WT" --mode final --round "$ROUND" --out "$PRIVATE_BLIND"
   BLIND_RC=$?
+  if [ "$BLIND_RC" -ne 0 ]; then
+    kill -TERM "$CODEX_JOB" 2>/dev/null || true
+  fi
   wait "$CODEX_JOB"
   CODEX_RC=$?
 fi
 set -e
 
-# Both legs are done: only now may either answer become visible inside the worktree.
-[ -f "$PRIVATE_CODEX_LOG" ] && cp "$PRIVATE_CODEX_LOG" "$OUTDIR/review-round-$ROUND.codex-leg.log"
+# Both legs are done: only now may either answer become visible inside the worktree. Bound the
+# persisted whole-leg log (not just the inner stderr file) while preserving useful head and tail.
+if [ -f "$PRIVATE_CODEX_LOG" ]; then
+  python3 - "$PRIVATE_CODEX_LOG" "$OUTDIR/review-round-$ROUND.codex-leg.log" \
+    "${CA_CODEX_REVIEW_LOG_BYTES:-65536}" <<'PY'
+import sys
+from pathlib import Path
+
+source, destination, limit_s = sys.argv[1:]
+try:
+    limit = int(limit_s)
+    if limit < 1:
+        raise ValueError
+except ValueError:
+    limit = 65536
+data = Path(source).read_bytes()
+if len(data) > limit:
+    marker = f"\n--- {len(data) - limit} leg-log bytes omitted ---\n".encode()
+    remaining = max(0, limit - len(marker))
+    head = remaining // 2
+    tail = remaining - head
+    data = data[:head] + marker + (data[-tail:] if tail else b"")
+Path(destination).write_bytes(data)
+PY
+fi
 [ -f "$PRIVATE_CODEX" ] && cp "$PRIVATE_CODEX" "$CODEX"
 [ -f "$PRIVATE_BLIND" ] && cp "$PRIVATE_BLIND" "$BLIND"
 for sidecar in stdout stderr; do
@@ -117,17 +174,39 @@ if [ "$CLAUDE_ONLY" -eq 1 ]; then
 else
 case "$CODEX_RC" in
   0)
-    COVERAGE="$(json_field "$CODEX" coverage partial)"
-    NFINDINGS="$(python3 -c 'import json,sys; print(len(json.load(open(sys.argv[1])).get("findings",[])))' "$CODEX")"
-    if [ "$COVERAGE" = "full" ] && [ "$NFINDINGS" = "0" ]; then
-      printf '{"dual_review":true,"codex":{"status":"clean_no_synthesis","coverage":"full"},"synthesis":{"status":"skipped_clean"}}\n' > "$META"
+    CODEX_PR="$(json_field "$CODEX" pr '')"
+    CODEX_HEAD="$(json_field "$CODEX" head_sha '')"
+    BLIND_PR="$(json_field "$BLIND" pr '')"
+    BLIND_HEAD="$(json_field "$BLIND" head_sha '')"
+    if [ "$CODEX_PR" != "$BLIND_PR" ] || [ "$CODEX_HEAD" != "$BLIND_HEAD" ]; then
+      printf '{"dual_review":true,"codex":{"status":"invalid","reason":"subject_mismatch"%s},"synthesis":{"status":"skipped_codex_invalid"}}\n' "$PRIOR_RECHECK" > "$META"
       cp "$BLIND" "$FINAL"
     else
-      printf '{"dual_review":true,"codex":{"status":"used","coverage":"%s"},"synthesis":{"status":"pending"}}\n' "$COVERAGE" > "$META"
-      bash "$SCRIPT_DIR/synthesize-review.sh" \
-        --blind "$BLIND" --second-opinion "$CODEX" --plan "$PLAN" \
-        --pr "$PR" --worktree "$WT" --round "$ROUND" --out "$FINAL"
-      printf '{"dual_review":true,"codex":{"status":"used","coverage":"%s"},"synthesis":{"status":"used"}}\n' "$COVERAGE" > "$META"
+      COVERAGE="$(json_field "$CODEX" coverage partial)"
+      NFINDINGS="$(python3 -c 'import json,sys; print(len(json.load(open(sys.argv[1])).get("findings",[])))' "$CODEX")"
+      if [ "$COVERAGE" = "full" ] && [ "$NFINDINGS" = "0" ]; then
+        printf '{"dual_review":true,"codex":{"status":"clean_no_synthesis","coverage":"full","pr":%s,"head_sha":"%s"},"synthesis":{"status":"skipped_clean"}}\n' \
+          "$CODEX_PR" "$CODEX_HEAD" > "$META"
+        cp "$BLIND" "$FINAL"
+      else
+        printf '{"dual_review":true,"codex":{"status":"used","coverage":"%s","pr":%s,"head_sha":"%s"},"synthesis":{"status":"pending"}}\n' \
+          "$COVERAGE" "$CODEX_PR" "$CODEX_HEAD" > "$META"
+        set +e
+        bash "$SCRIPT_DIR/synthesize-review.sh" \
+          --blind "$BLIND" --second-opinion "$CODEX" --plan "$PLAN" \
+          --pr "$PR" --worktree "$WT" --round "$ROUND" --out "$FINAL"
+        SYNTH_RC=$?
+        set -e
+        if [ "$SYNTH_RC" -ne 0 ]; then
+          rm -f "$FINAL"
+          printf '{"dual_review":true,"codex":{"status":"used","coverage":"%s","pr":%s,"head_sha":"%s"},"synthesis":{"status":"failed","reason":"synthesis_failed","exit_code":%s}}\n' \
+            "$COVERAGE" "$CODEX_PR" "$CODEX_HEAD" "$SYNTH_RC" > "$META"
+          echo "dual-review: synthesis failed (rc=$SYNTH_RC) — no verdict can be produced." >&2
+          exit 1
+        fi
+        printf '{"dual_review":true,"codex":{"status":"used","coverage":"%s","pr":%s,"head_sha":"%s"},"synthesis":{"status":"used"}}\n' \
+          "$COVERAGE" "$CODEX_PR" "$CODEX_HEAD" > "$META"
+      fi
     fi
     ;;
   124)
@@ -138,12 +217,32 @@ case "$CODEX_RC" in
     printf '{"dual_review":true,"codex":{"status":"invalid","reason":"schema_validation_failed"%s},"synthesis":{"status":"skipped_codex_invalid"}}\n' "$PRIOR_RECHECK" > "$META"
     cp "$BLIND" "$FINAL"
     ;;
+  2)
+    printf '{"dual_review":true,"codex":{"status":"unavailable","reason":"invalid_configuration"%s},"synthesis":{"status":"skipped_codex_unavailable"}}\n' "$PRIOR_RECHECK" > "$META"
+    cp "$BLIND" "$FINAL"
+    ;;
+  3)
+    printf '{"dual_review":true,"codex":{"status":"unavailable","reason":"codex_unavailable"%s},"synthesis":{"status":"skipped_codex_unavailable"}}\n' "$PRIOR_RECHECK" > "$META"
+    cp "$BLIND" "$FINAL"
+    ;;
   4)
     printf '{"dual_review":true,"codex":{"status":"unavailable","reason":"input_fetch_failed"%s},"synthesis":{"status":"skipped_codex_unavailable"}}\n' "$PRIOR_RECHECK" > "$META"
     cp "$BLIND" "$FINAL"
     ;;
+  5)
+    printf '{"dual_review":true,"codex":{"status":"unavailable","reason":"second_opinion_skill_unavailable"%s},"synthesis":{"status":"skipped_codex_unavailable"}}\n' "$PRIOR_RECHECK" > "$META"
+    cp "$BLIND" "$FINAL"
+    ;;
+  6)
+    printf '{"dual_review":true,"codex":{"status":"unavailable","reason":"review_input_oversized"%s},"synthesis":{"status":"skipped_codex_unavailable"}}\n' "$PRIOR_RECHECK" > "$META"
+    cp "$BLIND" "$FINAL"
+    ;;
+  7)
+    printf '{"dual_review":true,"codex":{"status":"unavailable","reason":"unsupported_codex_cli"%s},"synthesis":{"status":"skipped_codex_unavailable"}}\n' "$PRIOR_RECHECK" > "$META"
+    cp "$BLIND" "$FINAL"
+    ;;
   *)
-    printf '{"dual_review":true,"codex":{"status":"unavailable","reason":"codex_unavailable_or_oversized"%s},"synthesis":{"status":"skipped_codex_unavailable"}}\n' "$PRIOR_RECHECK" > "$META"
+    printf '{"dual_review":true,"codex":{"status":"unavailable","reason":"unexpected_codex_failure"%s},"synthesis":{"status":"skipped_codex_unavailable"}}\n' "$PRIOR_RECHECK" > "$META"
     cp "$BLIND" "$FINAL"
     ;;
 esac

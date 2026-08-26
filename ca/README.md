@@ -162,13 +162,17 @@ Checkpoints remain Claude-only progress gates — they cannot promote the PR, an
 Codex leg is the implementer reviewing its own work rather than an independent second opinion.
 In a dual final round:
 
-1. `dual-review.sh` starts both independent legs concurrently and keeps the current Codex artifact
+1. `dual-review.sh` starts both mutually blind legs concurrently and keeps the current Codex artifact
    outside the worktree until blind Claude finishes.
-2. `codex-review.sh` fetches PR metadata/diff on the host, builds a bounded prompt that explicitly
-   invokes `$ca-second-opinion`, and runs `codex exec --disable multi_agent --sandbox read-only
-   --output-schema`. The child starts from an isolated temporary root and reads the reviewed
-   worktree by absolute path, preventing repository-specific review skills from implicitly taking
-   over the leg. It has no network or `gh` access inside Codex.
+2. `codex-review.sh` fetches PR metadata/diff on the host, stages them as bounded untrusted-data
+   files, materializes the launcher's exact bundled `$ca-second-opinion`, and runs hardened read-only
+   `codex exec`. The child gets an isolated `CODEX_HOME` containing only a link to file-based auth,
+   so global instructions/skills/plugins/config are absent; apps/hooks/plugins/remote plugins/plugin
+   sharing/Web search/browser/computer/image-generation/multi-agent are disabled; shell commands
+   inherit only the core environment and filter secret-shaped variables; approvals are `never`; reviewed paths are JSON
+   encoded; and all subject data is untrusted. The PR head is checked before and after fetching,
+   the launcher requires a matching clean worktree HEAD, and Codex reads an immutable archive of
+   that commit rather than the live worktree. A capability preflight rejects unsupported CLIs.
 3. `claude-review.sh` runs the normal blind Claude final review and is instructed not to read prior
    `.ca` review artifacts.
 4. If Codex reports findings, warnings, or partial coverage, `synthesize-review.sh` invokes
@@ -178,6 +182,13 @@ In a dual final round:
    Claude JSON is final. If Codex is unavailable or invalid, the round degrades visibly to
    Claude-only and records the reason in `.ca/runs/<id>/review-round-N.meta.json`.
 
+Clean-skip and synthesis require both legs to name the same `pr` and `head_sha`. A mismatch
+invalidates the advisory leg and is recorded in the meta sidecar instead of mixing subjects.
+
+If blind Claude fails, the concurrent Codex launcher process group is cancelled immediately;
+the command does not wait out the Codex timeout. If synthesis fails, no final verdict survives and
+the meta sidecar records `synthesis.status: failed` instead of remaining `pending`.
+
 This adds model diversity, not author independence: Codex wrote the code, and a fresh Codex
 review may share model-family blind spots with the implementer. Claude remains the sole verdict
 holder. Flip-to-default criterion: after at least 5 real dual PRs, the confirmed-finding rate is
@@ -185,10 +196,11 @@ nonzero and the invalid/unavailable rate is below 20%.
 
 ## Both plugins are required
 
-The full loop needs **both** sides installed: the Codex plugin supplies `$ca-implement-plan` and the
-internal explicit-only `$ca-second-opinion`; the Claude plugin supplies `/ca:review-pr` and
-`/ca:synthesize-review`. `bash ca/install.sh` with no flags installs both Codex skills and
-prints/checks the Claude side. If you cannot install the Claude plugin globally, set
+The full implementation loop needs **both** sides installed: the Codex plugin supplies
+`$ca-implement-plan`; the Claude plugin supplies `/ca:review-pr` and `/ca:synthesize-review`.
+Each dual-review launcher bundles the exact internal `$ca-second-opinion`, so standalone
+`/ca:dual-review` needs a Codex binary but not an ambient Codex-plugin installation.
+`bash ca/install.sh` with no flags installs both Codex skills and prints/checks the Claude side. If you cannot install the Claude plugin globally, set
 `CA_CLAUDE_PLUGIN_DIR` so the review call can load it with `--plugin-dir`.
 
 ## Environment overrides
@@ -212,6 +224,9 @@ prints/checks the Claude side. If you cannot install the Claude plugin globally,
 - `CA_CODEX_SPAR_TIMEOUT` — timeout for the plan-sparring Codex leg, default 900 seconds.
 - `CA_CODEX_REVIEW_FULL_DIFF_BYTES` — full-diff prompt threshold, default 180000 bytes.
 - `CA_CODEX_REVIEW_FALLBACK_PROMPT_BYTES` — structured fallback budget, default 360000 bytes.
+- `CA_CODEX_REVIEW_PLAN_BYTES` — plan-input budget, default 120000 bytes.
+- `CA_CODEX_REVIEW_LOG_BYTES` — retained Codex diagnostic budget, default 65536 bytes; oversized
+  logs preserve both their beginning and end with an omission marker.
 - `CODEX_HOME` — where the Codex skill installs (default `~/.codex`).
 - `CA_BASE` — optional base-branch override; otherwise origin HEAD then a local
   `main|master|develop|dev` branch is detected.

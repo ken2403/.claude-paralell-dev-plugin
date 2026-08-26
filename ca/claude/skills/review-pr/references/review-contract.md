@@ -136,9 +136,17 @@ depends on who produced the round's JSON. A round that re-runs the Codex leg rec
 re-run it produces no synthesis JSON at all, so the flag lives in that round's
 `review-round-N.meta.json` sidecar's `codex` object, where `dual-review.sh` writes it.
 An unavailable Codex leg records a machine-readable reason. `codex_timeout` means the bounded
-child exceeded `CA_CODEX_REVIEW_TIMEOUT`; its partial stderr remains in
-`review-round-N.codex-leg.log`. Other reasons distinguish input fetch failure, invalid output, and
-generic binary/startup or oversized-prompt failure. No unavailable leg produces synthesis JSON.
+child exceeded `CA_CODEX_REVIEW_TIMEOUT`; its whole process group was terminated and a byte-bounded
+head+tail diagnostic remains in `review-round-N.codex-leg.log`. Other reasons distinguish invalid
+configuration, missing bundled skill, input fetch failure, oversized input, invalid output, binary/
+startup failure, unsupported Codex capabilities, and an unexpected launcher failure. No unavailable
+leg produces synthesis JSON. If synthesis itself fails, the orchestrator removes any partial final
+JSON, records `synthesis.status: failed` plus the exit code in the meta sidecar, and exits non-zero.
+The Codex input-fetch gate requires the reviewed worktree's clean HEAD to equal the PR `headRefOid`
+and rechecks that the PR head did not move while the diff was fetched. It reviews an immutable
+archive of that commit rather than the live worktree. Any mismatch is `input_fetch_failed`, never
+a usable full-coverage advisory. The orchestrator also requires the blind and Codex legs to name
+the same `pr` and `head_sha` before clean-skip or synthesis is allowed.
 
 ## Codex second-opinion contract (ca_codex_review.v1)
 
@@ -148,6 +156,8 @@ deliberately has no `verdict` field.
 ```json
 {
   "schema_version": "ca_codex_review.v1",
+  "pr": 123,
+  "head_sha": "9fc9e143c73b153c338b168ec85c9fe24414c159",
   "summary": "one-paragraph advisory summary",
   "coverage": "full | partial",
   "findings": [
@@ -165,7 +175,8 @@ deliberately has no `verdict` field.
 }
 ```
 
-Codex ids use `Xnnn`. The script validates the schema with `additionalProperties: false`,
-bounded strings, enums, and no `verdict`. Structured-output compatibility requires every finding
+`pr` and `head_sha` bind the advisory to the exact same subject as the blind review. Codex ids use
+`Xnnn`. The script validates the schema with `additionalProperties: false`, bounded strings,
+enums, and no `verdict`. Structured-output compatibility requires every finding
 to carry `file` and `line`; use JSON `null` when either is unknown. `coverage: "partial"` means omitted files were not
 reviewed by Codex, and Codex silence is not reassuring for those files.
